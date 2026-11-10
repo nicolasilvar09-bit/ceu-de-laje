@@ -1,0 +1,64 @@
+<!doctype html><meta charset="utf-8"><title>convert</title>
+<!-- Converte os assets baixados (FBX Rocketbox + HDR Poly Haven) para formatos web (GLB / JPG). Rodar via serve.js. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+<pre id="o"></pre>
+<script>
+const log=s=>{ document.getElementById('o').textContent+=s+'\n'; };
+const save=(name,buf)=>fetch('/save?name='+name,{method:'POST',body:buf}).then(r=>r.text());
+const AV={Male_Child_01:'cm001',Male_Child_02:'cm012',Female_Child_01:'cf001',Male_Adult_04:'m006',Male_Adult_08:'m014'};
+async function sky(){
+  const L=new THREE.RGBELoader().setDataType(THREE.UnsignedByteType);
+  const buf=await (await fetch('assets/sky_2k.hdr')).arrayBuffer(); const t=L.parse(buf); const w=t.width,h=t.height,d=t.data;
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); const im=g.createImageData(w,h);
+  const exp=0.85;
+  for(let i=0;i<w*h;i++){ const e=d[i*4+3]; const f=e?Math.pow(2,e-136):0;
+    for(let k=0;k<3;k++){ let x=d[i*4+k]*f*exp; x=(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14); x=Math.pow(Math.min(1,Math.max(0,x)),1/2.2); im.data[i*4+k]=x*255; }
+    im.data[i*4+3]=255; }
+  g.putImageData(im,0,0);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.86)); log('sky '+w+'x'+h+' '+await save('sky.jpg',blob));
+}
+// junta os trechos (groups) de mesmo material num trecho só: o GLTFExporter r128 troca os materiais quando há vários trechos repetidos
+function regroup(geo){
+  const groups=geo.groups.slice(); if(groups.length<2) return geo;
+  const mats=[...new Set(groups.map(g=>g.materialIndex))].sort((a,b)=>a-b);
+  const idx=geo.index; const out=new THREE.BufferGeometry(); const newGroups=[];
+  if(idx){ const arr=[]; for(const m of mats){ const st=arr.length; for(const g of groups) if(g.materialIndex===m) for(let i=g.start;i<g.start+g.count;i++) arr.push(idx.getX(i)); newGroups.push({start:st,count:arr.length-st,materialIndex:m}); }
+    for(const k in geo.attributes) out.setAttribute(k,geo.attributes[k]); out.setIndex(arr); }
+  else { const order=[]; for(const m of mats){ const st=order.length; for(const g of groups) if(g.materialIndex===m) for(let i=g.start;i<g.start+g.count;i++) order.push(i); newGroups.push({start:st,count:order.length-st,materialIndex:m}); }
+    for(const k in geo.attributes){ const a=geo.attributes[k], n=a.itemSize, src=a.array, dst=new src.constructor(order.length*n); order.forEach((v,i)=>{ for(let j=0;j<n;j++) dst[i*n+j]=src[v*n+j]; }); out.setAttribute(k,new THREE.BufferAttribute(dst,n,a.normalized)); }
+    // com índice, cada material vira um trecho próprio no glTF (sem índice o exportador repete a malha inteira em cada material)
+    const seq=new Uint32Array(order.length); for(let i=0;i<seq.length;i++) seq[i]=i; out.setIndex(new THREE.BufferAttribute(seq,1)); }
+  newGroups.forEach(g=>out.addGroup(g.start,g.count,g.materialIndex)); return out; }
+function keepTracks(clip,prefix){
+  const tracks=clip.tracks.filter(t=>t.name.endsWith('.quaternion') && !/Footsteps/.test(t.name)).map(t=>{ const c=t.clone(); c.name=c.name.replace(/^Bip01/,prefix); return c; });
+  return new THREE.AnimationClip(clip.name,clip.duration,tracks);
+}
+async function people(){
+  const L=new THREE.FBXLoader(), TL=new THREE.TextureLoader();
+  const clips={};
+  for(const [n,f] of [['idle','m_idle_neutral_01.max'],['walk','m_walk_neutral.max'],['run','m_run_neutral.max']]){ const o=await L.loadAsync('assets/people/'+f+'.fbx'); clips[n]=o.animations[0]; clips[n].name=n; }
+  const only=new URLSearchParams(location.search).get('only');
+  for(const [name,code] of Object.entries(AV)){
+    if(only && name!==only) continue;
+    const o=await L.loadAsync('assets/people/'+name+'.fbx'); let prefix='Bip01';
+    // personagem do jogador: texturas 1024 + mapa de relevo (pele, rugas da roupa)
+    const hi=name==='Male_Adult_04', dir=hi?'assets/people/hi/':'assets/people/';
+    const tex={}, nor={}; for(const part of ['body','head','opacity']){ try{ tex[part]=await TL.loadAsync(`${hi&&part!=='opacity'?dir:'assets/people/'}${code}_${part}_color.png`); tex[part].flipY=true; }catch(e){}
+      if(hi&&part!=='opacity'){ try{ nor[part]=await TL.loadAsync(`${dir}${code}_${part}_normal.png`); nor[part].flipY=true; }catch(e){} } }
+    o.traverse(c=>{ if(c.isBone && c.name.startsWith('Bip02')) prefix='Bip02';
+      if(c.isMesh){ c.geometry=regroup(c.geometry); const mats=(Array.isArray(c.material)?c.material:[c.material]).map(m=>{ const part=/opacity/.test(m.name)?'opacity':/head/.test(m.name)?'head':'body';
+        const nm=new THREE.MeshStandardMaterial({name:m.name,map:tex[part]||null,normalMap:nor[part]||null,roughness:part==='head'?0.62:0.85,metalness:0,skinning:true});
+        if(part==='opacity'){ nm.transparent=false; nm.alphaTest=0.5; nm.side=THREE.DoubleSide; } return nm; });
+        c.material=Array.isArray(c.material)?mats:mats[0]; } });
+    o.animations=[keepTracks(clips.idle,prefix),keepTracks(clips.walk,prefix),keepTracks(clips.run,prefix)];
+    // glTF em JSON com tudo embutido (o host do artifact não serve .glb, mas serve .json)
+    const gl=await new Promise(res=>new THREE.GLTFExporter().parse(o,res,{binary:false,animations:o.animations,embedImages:true,onlyVisible:false}));
+    const txt=JSON.stringify(gl); log(name+' '+prefix+' '+Math.round(txt.length/1024)+'KB '+await save(name+'.gltf.json',txt));
+  }
+}
+(async()=>{ try{ await people(); window.done='DONE\n'+document.getElementById('o').textContent; }catch(e){ window.done='ERR '+e.message+'\n'+e.stack; } })();
+</script>
