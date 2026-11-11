@@ -56,6 +56,9 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 #toast span{display:inline-block;margin-top:6px;background:var(--glass);color:#fff;padding:5px 12px;border-radius:8px;font-size:14px}
 #lineinfo{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
   display:flex;flex-direction:column;align-items:center;gap:6px}
+#linehp{display:flex;align-items:center;gap:8px;background:var(--glass);color:#fff;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.08em}
+#linehp .bar{width:120px}#linehp .bar i{background:#5fd07a;transition:width .15s,background .3s}#linehp .bar i.low{background:var(--relo)}
+#combo-badge{font-family:var(--display);font-weight:400;font-size:12px;color:var(--pipa);letter-spacing:0}
 #li-len{background:var(--glass);color:#fff;padding:5px 12px;border-radius:999px;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
 #fight{background:var(--glass);border-radius:10px;padding:8px 10px;color:#fff;font-size:11px;display:grid;grid-template-columns:auto 140px;gap:4px 8px;align-items:center}
 #fight .t{grid-column:1/-1;text-align:center;font-family:var(--display);font-size:16px;color:var(--relo);letter-spacing:.04em}
@@ -251,6 +254,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
       <span>Sua linha</span><div class="bar"><i id="hp-me"></i></div>
       <span id="foe-name">Rival</span><div class="bar foe"><i id="hp-foe"></i></div>
     </div>
+    <div id="linehp" hidden><span>LINHA</span><div class="bar"><i id="hp-line"></i></div><b id="combo-badge"></b></div>
     <div id="li-len">Linha 0 m · Altura 0 m</div>
   </div>
   <button id="b-mount" hidden>SOLTAR PIPA<small style="display:block;font-family:var(--body);font-size:10px;opacity:.7">tecla R</small></button>
@@ -282,7 +286,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
   </div>
   <div id="pins"></div>
   <div id="keys">
-    <b>Modo pipa</b> (<kbd>C</kbd> troca): <kbd>WASD</kbd> comanda o bico · <kbd>Mouse esq.</kbd>/<kbd>Espaço</kbd> puxar · <kbd>Mouse dir.</kbd> dar linha · <kbd>Rodinha</kbd>/<kbd>L</kbd> recolher<br>
+    <b>Modo pipa</b> (<kbd>C</kbd> troca): <kbd>WASD</kbd> comanda o bico · <kbd>Mouse esq.</kbd>/<kbd>Espaço</kbd> puxar · <kbd>Mouse dir.</kbd> dar linha (2 toques = rápido) · <kbd>Rodinha</kbd>/<kbd>L</kbd> recolher<br>
     <b>Bike/carro</b>: <kbd>F</kbd> entra e sai · <kbd>WASD</kbd> dirige · <kbd>Espaço</kbd> grau na bike<br>
     <b>Câmera</b>: arraste o mouse (no modo pipa, botão do meio) · <kbd>Q E</kbd> e <kbd>↑ ↓</kbd> · <kbd>X</kbd> aparar<br>
     <b>Modo rua</b>: <kbd>WASD</kbd> andar · <kbd>Shift</kbd> correr · <kbd>Espaço</kbd> pular · <kbd>Q E</kbd> câmera · <kbd>R</kbd> montar pipa
@@ -1075,7 +1079,7 @@ class Kite{
   constructor(design,owner,shape='pipa'){ this.shape=shape; this.maxL=MAXL;
     this.id=++KID; this.design=design; this.owner=owner; this.ownerName=owner?owner.name:'?';
     this.state='flying'; this.L=6; this.u=R(-.2,.2); this.v=0.8; this.heading=0; this.spinDir=rnd()<.5?1:-1;
-    this.hp=100; this.mode='idle'; this.hand=V(); this.pos=V(); this.sag=0; this.vel=V(); this.trail=0; this.landT=0;
+    this.hp=100; this.hpMax=100; this.regen=6; this.tier=0; this.sinceHit=9; this.tailCut=false; this.fast=false; this.mode='idle'; this.hand=V(); this.pos=V(); this.sag=0; this.vel=V(); this.trail=0; this.landT=0;
     this.contact=null; this.lineMoved=0; this.quality=1;
     const kt=kiteTex(design,shape);
     this.group=new THREE.Group();
@@ -1117,7 +1121,11 @@ class Kite{
   update(dt,inp){
     const st=this.state;
     if(st==='flying'){
-      let m='idle'; if(inp.pull)m='pull'; else if(inp.release)m='release'; else if(inp.reel)m='reel'; this.mode=m;
+      if(inp.release && !this._pr){ if(now-(this._lastRel||-9)<0.35){ this.fast=true; if(this.owner===player) Sx.click(1); } this._lastRel=now; }
+      if(!inp.release) this.fast=false; this._pr=!!inp.release;
+      let m='idle'; if(inp.pull)m='pull'; else if(inp.release)m=this.fast?'fastrel':'release'; else if(inp.reel)m='reel'; this.mode=m;
+      if(this.contact) this.sinceHit=0; else { this.sinceHit+=dt; if(this.sinceHit>2.5) this.hp=Math.min(this.hpMax,this.hp+this.regen*dt*(this.owner&&this.owner.embalado>now?1.6:1)); }
+      if(this.tailCut){ this.heading+=Math.sin(now*6.3+this.id)*2.4*dt; this.v-=Math.min(0.08,2/Math.max(this.L,4))*dt; }
       if(inp.steer) this.heading+=inp.steer*2.8*dt;
       // comando: o joystick aponta o bico da pipa (direção na tela = direção no céu)
       const aiming=inp.aim!=null; if(aiming) this.heading+=clamp(angDiff(this.heading,inp.aim),-5.5*dt,5.5*dt);
@@ -1125,7 +1133,7 @@ class Kite{
       if(inp.pull && !this._pp){ if(now-(this._lastPull||-9)<0.35){ this.dib=0.45; if(this.owner===player) Sx.click(1); } this._lastPull=now; }
       this._pp=!!inp.pull; if(this.dib>0) this.dib-=dt;
       if(m==='pull'){ const sp=Math.min(1.5,17*ws/L)*(this.dib>0?2.3:1); this.v+=Math.cos(this.heading)*sp*dt; this.u+=Math.sin(this.heading)*sp*dt/Math.max(Math.cos(this.v),.35); this.L=Math.max(3,this.L-2.0*dt); }
-      else if(m==='release'){ const dl=Math.max(0,Math.min(15*dt,this.maxL-this.L)); this.L+=dl; this.lineMoved+=dl; if(!aiming) this.heading+=this.spinDir*3.6*dt; this.v-=Math.min(0.3,4/L)*dt; this.u*=1-Math.min(0.3,3/L)*dt; }
+      else if(m==='release'||m==='fastrel'){ const dl=Math.max(0,Math.min((m==='fastrel'?34:15)*dt,this.maxL-this.L)); this.L+=dl; this.lineMoved+=dl; if(!aiming) this.heading+=this.spinDir*3.6*dt; this.v-=Math.min(0.3,4/L)*dt; this.u*=1-Math.min(0.3,3/L)*dt; }
       else if(m==='reel'){ const dl=Math.min(20*dt,this.L-2.5); this.L-=dl; this.lineMoved+=dl; if(!aiming) this.heading+=this.spinDir*1.0*dt; this.v=lerp(this.v,0.9,0.6*dt); }
       else { if(!aiming) this.heading+=this.spinDir*1.2*dt+Math.sin(now*2.1+this.id)*0.9*dt; /* abana parada */ this.v=lerp(this.v,0.95,Math.min(0.35,6*ws/L)*dt); this.u*=1-Math.min(0.1,1.5/L)*dt; }
       if(Math.abs(this.u)>1.2){ this.v-=Math.min(0.5,6/L)*dt; this.u=clamp(this.u,-1.32,1.32); }
@@ -1177,7 +1185,7 @@ class Kite{
     g.updateMatrixWorld(); this.knot.set(0,0.05,0.75); this.sail.localToWorld(this.knot);
     // papel de seda: acende quando o sol está atrás da pipa (contraluz)
     T2.subVectors(this.pos,camera.position).normalize(); const back=Math.max(0,T2.dot(SUN_DIR));
-    this.sail.material.emissiveIntensity=0.08+0.75*back*back;
+    this.sail.material.emissiveIntensity=0.08+0.75*back*back+(this.owner&&this.owner.embalado>now?0.35+0.25*Math.sin(now*8):0);
     // linha
     const arr=this.line.geometry.attributes.position.array;
     if(this.state==='flying'||this.state==='crashed'){
@@ -1204,6 +1212,7 @@ class Kite{
     for(let i=1;i<TAILN;i++){ const q=tl[i]; const vx=(q.p.x-q.o.x)*0.95, vy=(q.p.y-q.o.y)*0.95, vz=(q.p.z-q.o.z)*0.95; q.o.copy(q.p);
       const wig=Math.sin(now*5.5-i*0.55)*0.006; q.p.x+=vx+wx+wind.P.x*wig; q.p.y+=vy+gy+Math.cos(now*4.1-i*0.5)*0.002; q.p.z+=vz+wz+wind.P.z*wig; }
     for(let it=0;it<2;it++) for(let i=1;i<TAILN;i++){ const a=tl[i-1].p,b=tl[i].p; T4.subVectors(b,a); const l=T4.length()||1; b.copy(a).addScaledVector(T4,TAILSEG/l); }
+    if(this.tailCut) for(let i=6;i<TAILN;i++){ tl[i].p.copy(tl[5].p); tl[i].o.copy(tl[5].p); }
     if(this.state==='landed'||this.state==='crashed'){ for(let i=1;i<TAILN;i++){ const gg=world.topAt(tl[i].p.x,tl[i].p.z,0)+0.05; if(tl[i].p.y<gg) tl[i].p.y=gg; } }
     const tp=this.tailMesh.geometry.attributes.position.array; T5.subVectors(camera.position,this.pos).normalize();
     for(let i=0;i<TAILN;i++){ const a=tl[Math.max(0,i-1)].p,b=tl[Math.min(TAILN-1,i+1)].p; T4.subVectors(b,a); T6.crossVectors(T4,T5).normalize().multiplyScalar((i%3===1?0.085:0.018)*(1-i/TAILN*0.3)*Math.min(2,this.group.scale.x/KSCALE));
@@ -1218,10 +1227,11 @@ class Kite{
 /* ---------------- jogador ---------------- */
 const player={name:'Você',pos:new THREE.Vector3(START.x,START.y,START.z),vy:0,onGround:true,climb:null,r:0.32,face:wind.ang+Math.PI/2,
   kite:null,hand:V(),inv:[],relos:0,apar:0,design:DESIGNS[0],speed:0,money:60,line:null,owned:new Set(['l10'])};
-const LINES=[{id:'l10',name:'Linha 10',q:1.0,max:220,price:0,info:'Fio comum. Corta devagar.'},
-             {id:'l24',name:'Linha 24',q:1.2,max:300,price:150,info:'Mais grossa: aguenta mais e corta 20% mais rápido.'},
-             {id:'pro',name:'Linha Pro',q:1.45,max:380,price:400,info:'Carretel grande e corte 45% mais rápido.'}];
-player.line=LINES[0];
+const LINES=[{id:'l10',name:'Linha 10',tier:0,q:1.0,hp:100,regen:6,max:220,price:0,info:'Fio comum. Corta devagar e cansa rápido.'},
+             {id:'l24',name:'Linha 24',tier:1,q:1.2,hp:130,regen:9,max:300,price:150,info:'Mais grossa: corta mais, aguenta mais cruzo e recupera mais rápido.'},
+             {id:'pro',name:'Linha Pro',tier:2,q:1.45,hp:165,regen:13,max:380,price:400,info:'Carretel grande, corte forte e recuperação rápida.'}];
+function applyLine(k,L){ k.quality=L.q; k.maxL=L.max; k.hpMax=L.hp; k.hp=Math.min(k.hp,L.hp); if(k.hp<=0||k.hp===100&&L.hp!==100) k.hp=L.hp; k.regen=L.regen; k.tier=L.tier; }
+player.line=LINES[0]; player.combo=0; player.embalado=0;
 player.person=makePerson(0xf4f4f4,{capColor:0xe8412f,pants:0x2b3a55,skin:0x8d5a3b,av:'Male_Adult_04'});
 player.person.g.position.copy(player.pos);
 function playerHand(){ if(personHand(player.person,player.hand)) return player.hand; return player.hand.set(player.pos.x+Math.sin(player.face)*0.35,player.pos.y+2.05,player.pos.z+Math.cos(player.face)*0.35); }
@@ -1233,7 +1243,7 @@ buildShop(); // depois das pipas e das pessoas, que a loja usa
 class Flyer{
   constructor(name,b){ this.name=name; this.pos=new THREE.Vector3(b.cx,b.top,b.cz); this.person=makePerson(pick(SHIRTS),{adult:rnd()<0.45}); this.person.g.position.copy(this.pos);
     this.kite=null; this.respawn=R(0.5,5); this.aiT=0; this.target=null; this.goal={u:0,v:0.9,L:60}; this.aggr=R(0.35,0.85); this.tol=R(0.25,0.45);
-    this.style=rnd()<0.65?'puxador':'aparador'; this.lineQ=R(0.85,1.3); this.hand=V(); this.face=wind.ang; this.rel=0; }
+    this.style=rnd()<0.65?'puxador':'aparador'; this.tierL=rnd()<0.5?0:rnd()<0.65?1:2; this.lineQ=LINES[this.tierL].q; this.combo=0; this.embalado=0; this.hand=V(); this.face=wind.ang; this.rel=0; }
   update(dt){
     if(this.remoteCtl){ this.puppet(dt); return; }
     const k=this.kite;
@@ -1241,7 +1251,7 @@ class Flyer{
     this.person.g.rotation.y=this.face;
     this.hand.set(this.pos.x+Math.sin(this.face)*0.35,this.pos.y+2.05,this.pos.z+Math.cos(this.face)*0.35);
     if(!k){ animPerson(this.person,0,dt,false); this.respawn-=dt;
-      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS),this,pick(SHAPE_KEYS)); this.kite.quality=this.lineQ; this.kite.netId='b'+flyers.indexOf(this)+'-'+Math.random().toString(36).slice(2,7); this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
+      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS),this,pick(SHAPE_KEYS)); applyLine(this.kite,LINES[this.tierL]); this.kite.hp=this.kite.hpMax; this.kite.netId='b'+flyers.indexOf(this)+'-'+Math.random().toString(36).slice(2,7); this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
       return; }
     k.hand.copy(this.hand);
     const inp={pull:false,release:false,reel:false,steer:0};
@@ -1349,7 +1359,15 @@ function updateTow(dt,reel){ const k=player.tow; if(!k) return; if(k.state!=='to
 
 /* ---------------- cruzada e relo ---------------- */
 const pairs=new Map();
-const ATK={pull:1.7,reel:1.2,release:0.8,idle:0.6};
+const ATK={pull:1.7,reel:1.2,release:0.8,fastrel:0.5,idle:0.6};
+const DEF=m=>m==='release'?0.6:m==='fastrel'?1.4:1; // descarregar defende; descarregar rápido deixa a pipa aberta
+// s = onde o cruzo pega na linha da vítima (0 = na mão dela, 1 = no nó da pipa)
+function lineDmg(a,v,s){ let d=26*(a.quality||1)*(ATK[a.mode]||0.6)*DEF(v.mode);
+  d*=1+0.35*clamp((a.pos.y-v.pos.y)/25,-1,1);               // quem está por cima corta mais
+  const weak=s>0.86?1.7:s<0.22?0.7:1; d*=weak;                // perto do nó do cabresto é crítico
+  if(a.dib>0) d*=1.5;                                          // dibicada no cruzo
+  if(a.owner&&a.owner.embalado>now) d*=1.4;                    // embalado
+  return {d:d*R(0.75,1.25),crit:weak>1||a.dib>0}; }
 function chord(a,b){
   const d1=T1.subVectors(a.pos,a.hand), d2=T2.subVectors(b.pos,b.hand), r=T3.subVectors(a.hand,b.hand);
   const A=d1.dot(d1),E=d2.dot(d2),F=d2.dot(r),C=d1.dot(r),B=d1.dot(d2),den=A*E-B*B;
@@ -1363,12 +1381,23 @@ const CA=[],CB=[]; for(let i=0;i<=24;i++){ CA.push(V()); CB.push(V()); }
 function touchPoint(a,b,out){ for(let i=0;i<=24;i++){ a.rawCurve(i/24,CA[i]); b.rawCurve(i/24,CB[i]); }
   let best=1e9,bi=0,bj=0; for(let i=1;i<24;i++) for(let j=1;j<24;j++){ const d=CA[i].distanceToSquared(CB[j]); if(d<best){best=d;bi=i;bj=j;} }
   out.copy(CA[bi]).add(CB[bj]).multiplyScalar(0.5); return {sa:bi/24,sb:bj/24}; }
-function startContact(a,b,cc){ const c={a,b,cross:cc.sign,s:cc.s,pt:V()}; a.contact=c; b.contact=c; a.hp=100; b.hp=100;
+function startContact(a,b,cc){ const c={a,b,cross:cc.sign,s:cc.s,pt:V(),crit:false}; a.contact=c; b.contact=c;
   const tp=touchPoint(a,b,c.pt); a.via=V().copy(c.pt); b.via=V().copy(c.pt); a.viaS=tp.sa; b.viaS=tp.sb;
   if(a.owner===player||b.owner===player){ Sx.click(1); } return c; }
-function endContact(c){ c.a.via=null; c.b.via=null; if(c.a.contact===c) c.a.contact=null; if(c.b.contact===c) c.b.contact=null; c.a.hp=100; c.b.hp=100; c.dead=true; }
+function endContact(c){ c.a.via=null; c.b.via=null; if(c.a.contact===c) c.a.contact=null; if(c.b.contact===c) c.b.contact=null; c.dead=true; } // a vida da linha não volta: só recupera longe do cruzo
 const tpS=k=>k.viaS!=null?k.viaS:0.5;
+function checkTailCuts(){
+  const atk=kites.filter(k=>k.state==='flying'&&k.owner&&k.L>8&&(k.mode==='pull'||k.dib>0));
+  for(const a of atk) for(const v of kites){ if(v===a||v.state!=='flying'||!v.owner||v.tailCut||v.remote||!v.tailInit) continue;
+    if(a.pos.distanceTo(v.pos)>a.L*0.5+40) continue; const A=a.hand, B=a.pos; T1.subVectors(B,A); const L2=T1.lengthSq()||1;
+    for(let i=6;i<TAILN;i+=3){ const p=v.tail[i].p; const t=clamp(T2.subVectors(p,A).dot(T1)/L2,0,1); T3.copy(A).addScaledVector(T1,t); if(T3.distanceTo(p)<0.6){ tailCut(v,a); break; } } } }
+function tailCut(v,a){ v.tailCut=true; const pts=[]; for(let i=5;i<TAILN;i++){ const p=v.tail[i].p; pts.push(p.x,p.y,p.z); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3)); const ln=new THREE.Line(g,new THREE.LineBasicMaterial({color:LC(v.design.tail),transparent:true})); ln.frustumCulled=false; scene.add(ln); remnants.push({ln,t:0,vy:0});
+  sparks(v.tail[5].p,10);
+  if(a.owner===player){ player.money+=20; toast('CORTOU A RABIOLA!',`A pipa do ${v.ownerName} ficou doida · +R$ 20`); feed(`Você cortou a rabiola de <em>${v.ownerName}</em>`); Sx.cut(); }
+  else if(v.owner===player){ toast('CORTARAM SUA RABIOLA','A pipa fica instável: cuidado no cruzo','red'); feed(`<em>${a.ownerName}</em> cortou sua rabiola`); } }
 function updateCombat(dt){
+  checkTailCuts();
   const ks=kites.filter(k=>k.state==='flying'&&k.owner&&k.L>6);
   const seen=new Set();
   for(let i=0;i<ks.length;i++) for(let j=i+1;j<ks.length;j++){
@@ -1379,8 +1408,8 @@ function updateCombat(dt){
     if(!ps.c){ if(inR && cc.sign!==0 && ps.sign!==0 && cc.sign!==ps.sign && cc.dist<8 && !a.contact && !b.contact) ps.c=startContact(a,b,cc); }
     else if(!inR || (cc.sign!==0 && cc.sign!==ps.c.cross)){ endContact(ps.c); ps.c=null; }
     else { const c=ps.c; c.s=cc.s; const tp=touchPoint(a,b,T6); c.pt.lerp(T6,0.35); a.via.copy(c.pt); b.via.copy(c.pt); a.viaS=lerp(a.viaS,tp.sa,0.35); b.viaS=lerp(b.viaS,tp.sb,0.35);
-      const rab=26*a.quality*ATK[a.mode]*(b.mode==='release'?0.6:1)*R(0.6,1.4), rba=26*b.quality*ATK[b.mode]*(a.mode==='release'?0.6:1)*R(0.6,1.4);
-      b.hp-=rab*dt; a.hp-=rba*dt; sparks(c.pt,2);
+      const hb=lineDmg(a,b,b.viaS||0.5), ha=lineDmg(b,a,a.viaS||0.5); b.hp-=hb.d*dt; a.hp-=ha.d*dt; sparks(c.pt,(hb.crit||ha.crit)?4:2);
+      if(!c.crit && ((a.owner===player&&hb.crit)||(b.owner===player&&ha.crit))){ c.crit=true; const me=a.owner===player?a:b; toast(me.dib>0?'DIBICADA NO CRUZO!':'PEGOU NO NÓ!','Golpe crítico: corta bem mais rápido'); }
       if(a.hp<=0||b.hp<=0){ const victim=a.hp<=b.hp?a:b, cutter=victim===a?b:a;
         if(victim.remote){ victim.hp=5; } else { endContact(c); ps.c=null; cutKite(victim,cutter,victim===a?tpS(a):tpS(b)); } }
     }
@@ -1389,9 +1418,10 @@ function updateCombat(dt){
   for(const k of pairs.keys()) if(!seen.has(k)){ const ps=pairs.get(k); if(ps.c) endContact(ps.c); pairs.delete(k); }
 }
 const remnants=[];
+function netHost(){ try{ return NET.host; }catch(e){ return false; } } // o pré-aquecimento roda antes da rede existir
 function cutKite(v,cutter,s){
   const owner=v.owner; const cut=v.curve(s,V());
-  if((owner===player || (owner instanceof Flyer && NET.host && !owner.remoteCtl)) && v.netId) netSend('cut',{k:v.netId,by:cutter.remote&&cutter.owner?cutter.owner.id:null,bn:cutter.ownerName,c:[cut.x,cut.y,cut.z].map(r2),s});
+  if((owner===player || (owner instanceof Flyer && netHost() && !owner.remoteCtl)) && v.netId) netSend('cut',{k:v.netId,by:cutter.remote&&cutter.owner?cutter.owner.id:null,bn:cutter.ownerName,c:[cut.x,cut.y,cut.z].map(r2),s});
   const pts=[]; for(let i=0;i<=10;i++){ v.curve(s*i/10,T1); pts.push(T1.x,T1.y,T1.z); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
   const ln=new THREE.Line(g,LINE_MAT.clone()); ln.frustumCulled=false; scene.add(ln); remnants.push({ln,t:0,vy:0});
@@ -1402,7 +1432,17 @@ function cutKite(v,cutter,s){
   if(cutter.owner===player){ const bonus=(vs&&vs.f===owner)?100:0; player.money+=40+bonus; if(bonus){ feed(`Você venceu o Vs contra <em>${v.ownerName}</em> · +R$ 100`); setTimeout(()=>toast('GANHOU O VS!','+R$ 140 no bolso'),900); vs=null; } }
   if(vs && owner===player && cutter.owner===vs.f){ setTimeout(()=>toast('PERDEU O VS',`${vs&&vs.f.name||'O rival'} levou essa`,'red'),900); feed(`<em>${cutter.ownerName}</em> ganhou o Vs`); vs=null; }
   if(vs && (owner===vs.f || owner===player)) vs=null;
-  if(cutter.owner===player){ player.relos++; toast('RELOU!',`Você cortou a linha do ${v.ownerName}`); feed(`Você relou <em>${v.ownerName}</em>`); }
+  const CN=['','','DUPLO','TRIPLO','QUÁDRUPLO','PENTA','HEXA','HEPTA','OCTA','NONA','DECA'];
+  if(owner && owner.combo!==undefined) owner.combo=0; // quem perde a pipa perde a sequência
+  if(cutter.owner===player){ player.relos++; player.combo++; const n=player.combo; let extra=n>=2?40*(n-1):0, sub=`Você cortou a linha do ${v.ownerName}`;
+    if(v.tier>player.line.tier){ extra+=50; sub='ZEBRA! Relou linha mais forte que a sua · +R$ 50'; }
+    if(n>=3){ player.embalado=now+20; sub=`EMBALADO por 20 s: corta 40% mais · +R$ ${40+extra}`; }
+    player.money+=extra; toast(n>=2?'RELO '+(CN[Math.min(n,10)]||n+'x')+'!':'RELOU!',n>=2&&n<3?`Sequência sem perder a pipa · +R$ ${40+extra}`:sub);
+    feed(n>=2?`Você fez relo <em>${CN[Math.min(n,10)]||n+'x'}</em> em ${v.ownerName}`:`Você relou <em>${v.ownerName}</em>`); }
+  else if(cutter.owner instanceof Flyer){ const fl=cutter.owner; fl.combo=(fl.combo||0)+1; if(fl.combo>=3) fl.embalado=now+20;
+    if(fl.combo>=2) feed(`<em>${fl.name}</em> fez relo ${CN[Math.min(fl.combo,10)]}`); }
+  if(owner===player) player.combo=0;
+  if(cutter.owner===player){ /* já tratado acima */ }
   else if(owner===player){ toast('TE RELARAM!',`${cutter.ownerName} cortou sua linha. Corre pra aparar!`,'red'); feed(`<em>${cutter.ownerName}</em> relou você`); }
   else feed(`<em>${cutter.ownerName}</em> relou ${v.ownerName}`);
   spawnRunners(v);
@@ -1491,8 +1531,10 @@ function updateHUD(dt){
   else if(k){ const g=world.topAt(k.pos.x,k.pos.z); setText(hud.len,'l',`${player.line.name} ${Math.round(player.line.q*100)}% · ${k.L|0}/${k.maxL} m · Altura ${Math.max(0,k.pos.y-g)|0} m${k.state==='crashed'?' · caída':''}${vs?' · VS '+vs.f.name:''}`); }
   else setText(hud.len,'l',player.inv.length?'Sem pipa no céu · monte uma nova':'Sem pipa · apare uma que estiver caindo');
   hud.mount.hidden=!(running && !k && player.inv.length>0);
+  { const lh=$('#linehp'), show=!!(k&&k.state==='flying'); lh.hidden=!show; if(show){ const pct=Math.max(0,k.hp/k.hpMax*100); const hi=$('#hp-line'); hi.style.width=pct+'%'; hi.classList.toggle('low',pct<30);
+      const emb=player.embalado>now; setText($('#combo-badge'),'cb',(player.combo>=2?'x'+player.combo+' ':'')+(emb?'EMBALADO '+Math.ceil(player.embalado-now)+'s':(k.tailCut?'SEM RABIOLA':''))); } }
   const c=k&&k.contact; hud.fight.hidden=!c;
-  if(c){ const foe=c.a===k?c.b:c.a; hud.hpMe.style.width=Math.max(0,k.hp)+'%'; hud.hpFoe.style.width=Math.max(0,foe.hp)+'%'; setText(hud.foe,'f','Linha do '+foe.ownerName); }
+  if(c){ const foe=c.a===k?c.b:c.a; hud.hpMe.style.width=Math.max(0,k.hp/k.hpMax*100)+'%'; hud.hpFoe.style.width=Math.max(0,foe.hp/(foe.hpMax||100)*100)+'%'; setText(hud.foe,'f','Linha do '+foe.ownerName); }
   // anel de mira na sua pipa
   if(k && k.state==='flying'){ const [x,y,z]=project(k.pos);
     if(z<1 && x>-60 && x<innerWidth+60 && y>-60 && y<innerHeight+60){ ringEl.hidden=false; ringEl.style.transform=`translate(${x-27}px,${y-27}px)`; ringEl.classList.toggle('hot',!!c);
@@ -1567,10 +1609,10 @@ function shopRender(){
   document.querySelectorAll('#shop-shapes button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===shop.shape)));
   document.querySelectorAll('#shop-designs button').forEach((x,i)=>{ x.setAttribute('aria-pressed',String(DESIGNS[i]===shop.design)); drawKite(x.firstChild.getContext('2d'),96,DESIGNS[i],shop.shape); });
   const lw=$('#shop-lines'); lw.textContent='';
-  for(const L of LINES){ const row=document.createElement('div'); row.className='line-opt'; const info=document.createElement('div'); const t=document.createElement('b'); t.textContent=`${L.name} · ${Math.round(L.q*100)}% · ${L.max} m`; info.append(t,L.info); row.appendChild(info);
+  for(const L of LINES){ const row=document.createElement('div'); row.className='line-opt'; const info=document.createElement('div'); const t=document.createElement('b'); t.textContent=`${L.name} · corte ${Math.round(L.q*100)}% · vida ${L.hp} · recupera ${L.regen}/s · ${L.max} m`; info.append(t,L.info); row.appendChild(info);
     const bt=document.createElement('button'); const own=player.owned.has(L.id);
-    if(player.line===L){ bt.textContent='EM USO'; bt.disabled=true; } else if(own){ bt.textContent='USAR'; bt.onclick=()=>{ player.line=L; if(player.kite){ player.kite.quality=L.q; player.kite.maxL=L.max; } shopRender(); }; }
-    else { bt.textContent='R$ '+L.price; bt.disabled=player.money<L.price; bt.onclick=()=>{ if(player.money<L.price) return; player.money-=L.price; player.owned.add(L.id); player.line=L; if(player.kite){ player.kite.quality=L.q; player.kite.maxL=L.max; } $('#shop-msg').textContent=L.name+' comprada e em uso'; Sx.catch(); shopRender(); }; }
+    if(player.line===L){ bt.textContent='EM USO'; bt.disabled=true; } else if(own){ bt.textContent='USAR'; bt.onclick=()=>{ player.line=L; if(player.kite) applyLine(player.kite,L); shopRender(); }; }
+    else { bt.textContent='R$ '+L.price; bt.disabled=player.money<L.price; bt.onclick=()=>{ if(player.money<L.price) return; player.money-=L.price; player.owned.add(L.id); player.line=L; if(player.kite) applyLine(player.kite,L); $('#shop-msg').textContent=L.name+' comprada e em uso'; Sx.catch(); shopRender(); }; }
     row.appendChild(bt); lw.appendChild(row); }
 }
 for(const k of SHAPE_KEYS){ const b=document.createElement('button'); b.type='button'; b.dataset.k=k; b.id='shape-'+k; const c=document.createElement('canvas'); c.width=c.height=84; drawKite(c.getContext('2d'),84,DESIGNS[0],k); b.append(c,SHAPES[k].name+' R$ '+SHAPES[k].price); b.onclick=()=>{ shop.shape=k; shopRender(); }; $('#shop-shapes').appendChild(b); }
@@ -1583,7 +1625,7 @@ $('#b-talk').addEventListener('click',()=>{ if(inShop()) openShop(); });
 $('#shop-close').addEventListener('click',()=>{ shopEl.hidden=true; });
 function mountKite(){ if(!running||player.kite||!player.inv.length||player.veh) return;
   { let tall=0; for(const a of [0,1,2,3,4,5,6,7]){ const x=player.pos.x+Math.cos(a*0.785)*6, z=player.pos.z+Math.sin(a*0.785)*6; if(world.topAt(x,z,0.5)>player.pos.y+4) tall++; }
-    if(tall>=4){ toast('MUITO APERTADO','Vai pro campo ou sobe numa laje pra soltar','red'); return; } } const it=player.inv.shift(); const k=new Kite(it.d,player,it.s); k.quality=player.line.q; k.maxL=player.line.max; k.hand.copy(playerHand()); k.L=5; k.launch(); player.kite=k; camOff=0; camMode='pipa'; toast('PIPA NO AR','Dê linha pra ela subir'); }
+    if(tall>=4){ toast('MUITO APERTADO','Vai pro campo ou sobe numa laje pra soltar','red'); return; } } const it=player.inv.shift(); const k=new Kite(it.d,player,it.s); applyLine(k,player.line); k.hp=k.hpMax; player.combo=0; k.hand.copy(playerHand()); k.L=5; k.launch(); player.kite=k; camOff=0; camMode='pipa'; toast('PIPA NO AR','Dê linha pra ela subir'); }
 
 /* ---------------- câmera ---------------- */
 let camYaw=wind.ang>0?Math.atan2(wind.D.x,wind.D.z):0;
