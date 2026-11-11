@@ -22,6 +22,7 @@ Sobe a pipa da laje, cruza com a linha dos outros e puxa pra relar. Pipa cortada
 ## Online
 Sala única ("praça") pelo Supabase Realtime do projeto paintball (separado do NK), com a chave publicável e canal de broadcast, sem tabelas. Cada jogador manda no máximo 4 atualizações por segundo e só quando algo muda.
 O estado enviado inclui posição, veículo e pipa. Cada um é dono da própria pipa: o cruzo é calculado nos dois lados, mas só o dono corta a própria linha e avisa a sala. Quem apara uma pipa avisa a sala, e ela some pros outros.
+Salas: "Criar sala" gera um código de 4 letras e um link (`?sala=CODIGO`); os amigos entram pelo código ou pelo link. Quem entrou primeiro é o dono da sala e roda os bots: todos veem os mesmos bots, e se o dono sair o próximo assume. Quanto mais gente na sala, menos vezes cada um manda o estado (de 4 até ~0,8 por segundo), pra caber no limite grátis de ~100 mensagens/s.
 Só funciona no link do GitHub Pages; o link do Claude bloqueia conexões externas.
 
 ## Sistemas

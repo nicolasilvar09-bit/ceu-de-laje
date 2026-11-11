@@ -150,6 +150,10 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 .netrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #nick{font-family:var(--body);font-size:15px;font-weight:600;padding:8px 10px;border-radius:10px;border:2px solid #d9d2c3;background:#fff;color:var(--ink);width:170px}
 #nick:focus-visible{outline:3px solid var(--pipa);outline-offset:1px}
+.rbtn{border:none;border-radius:9px;background:#e9e4d8;color:var(--ink);font-size:12px;padding:8px 10px}
+.rbtn.hot{background:var(--relo);color:#fff}
+#room-code{font-family:var(--body);font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:7px 9px;border-radius:9px;border:2px solid #d9d2c3;width:96px;background:#fff;color:var(--ink)}
+#room-info{font-size:12px;color:var(--ink);opacity:.8;margin-top:-6px;text-wrap:pretty}
 #net-status{font-size:12px;font-weight:600;color:var(--linha)}
 .klabel.peer{color:#7fd0f0;font-weight:800}
 #chars{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
@@ -264,6 +268,13 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <div class="lbl">Escolha sua pipa</div>
     <div id="designs"></div>
     <div class="netrow"><label for="nick" class="lbl">Apelido</label><input id="nick" maxlength="14" autocomplete="off" placeholder="Seu apelido"><span id="net-status">Online: conectando…</span></div>
+    <div class="netrow roomrow"><span class="lbl">Sala</span>
+      <button type="button" id="room-open" class="rbtn">PRAÇA ABERTA</button>
+      <button type="button" id="room-new" class="rbtn hot">CRIAR SALA</button>
+      <input id="room-code" maxlength="60" autocomplete="off" placeholder="Código" aria-label="Código da sala">
+      <button type="button" id="room-join" class="rbtn">ENTRAR</button>
+      <button type="button" id="room-link" class="rbtn" hidden>COPIAR LINK DA SALA</button></div>
+    <div id="room-info">Você está na praça aberta</div>
     <div class="lbl">Seu personagem</div>
     <div id="chars"></div>
     <div class="cols">
@@ -668,6 +679,7 @@ function kiteTex(d,shape='pipa'){ const key=d.name+'|'+shape; if(texCache.has(ke
   g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1.2; for(let i=0;i<5;i++){ g.beginPath(); g.moveTo(Math.random()*256,Math.random()*256); g.lineTo(Math.random()*256,Math.random()*256); g.stroke(); } g.restore();
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; t.encoding=THREE.sRGBEncoding; texCache.set(key,t); return t; }
 
+_s=20261110; // semente fixa: PC e celular geram a mesma cidade (os morros variam por aparelho e não podem desalinhar)
 buildCity();
 /* loja de pipas da esquina: ponto comercial aberto pra rua, com pipas na parede, carretéis e balcão */
 const SHOP={x0:4,x1:12,z0:20,z1:28,door:new THREE.Vector3(4,1.4,24)};
@@ -984,12 +996,13 @@ class Flyer{
     this.kite=null; this.respawn=R(0.5,5); this.aiT=0; this.target=null; this.goal={u:0,v:0.9,L:60}; this.aggr=R(0.35,0.85); this.tol=R(0.25,0.45);
     this.style=rnd()<0.65?'puxador':'aparador'; this.lineQ=R(0.85,1.3); this.hand=V(); this.face=wind.ang; this.rel=0; }
   update(dt){
+    if(this.remoteCtl){ this.puppet(dt); return; }
     const k=this.kite;
     if(k) this.face=Math.atan2(k.pos.x-this.pos.x,k.pos.z-this.pos.z);
     this.person.g.rotation.y=this.face;
     this.hand.set(this.pos.x+Math.sin(this.face)*0.35,this.pos.y+2.05,this.pos.z+Math.cos(this.face)*0.35);
     if(!k){ animPerson(this.person,0,dt,false); this.respawn-=dt;
-      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS),this,pick(SHAPE_KEYS)); this.kite.quality=this.lineQ; this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
+      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS),this,pick(SHAPE_KEYS)); this.kite.quality=this.lineQ; this.kite.netId='b'+flyers.indexOf(this)+'-'+Math.random().toString(36).slice(2,7); this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
       return; }
     k.hand.copy(this.hand);
     const inp={pull:false,release:false,reel:false,steer:0};
@@ -1010,14 +1023,22 @@ class Flyer{
     if(personHand(this.person,this.hand)) k.hand.copy(this.hand);
     k.update(dt,inp);
   }
+  // convidado: a pipa do bot segue o estado que o dono da sala manda
+  puppet(dt){ const k=this.kite&&this.kite.owner===this?this.kite:null;
+    if(k) this.face+=angDiff(this.face,Math.atan2(k.pos.x-this.pos.x,k.pos.z-this.pos.z))*Math.min(1,dt*5);
+    this.person.g.rotation.y=this.face; this.hand.set(this.pos.x+Math.sin(this.face)*0.35,this.pos.y+2.05,this.pos.z+Math.cos(this.face)*0.35);
+    animPerson(this.person,0,dt,!!k,k&&k.mode==='pull',k&&k.pos);
+    if(k){ const a=1-Math.exp(-6*dt); if(this.kt){ k.pos.lerp(this.kt.pos,a); } if(personHand(this.person,this.hand)) k.hand.copy(this.hand); else k.hand.copy(this.hand); k.visual(dt); } }
   aimAt(p){ const r=T6.subVectors(p,this.hand); const d=r.dot(wind.D),q=r.dot(wind.P),hl=Math.hypot(d,q);
     this.goal.u=clamp(Math.atan2(q,d),-1.15,1.15); this.goal.v=clamp(Math.atan2(r.y,hl),0.22,1.35); this.goal.L=clamp(r.length()*1.05,10,210); }
   think(){ if(vs&&vs.f===this&&player.kite&&player.kite.state==='flying'){ this.target=player.kite; this.aiT=1.5; return; }
+    if(this.vsKite){ if(this.vsKite.state==='flying'&&this.vsKite.owner){ this.target=this.vsKite; this.aiT=1.5; return; } this.vsKite=null; }
     this.aiT=R(4,9); const me=this.kite;
     const c=kites.filter(o=>o!==me && o.state==='flying' && o.owner && o.L>12 && o.pos.distanceTo(this.hand)<200);
     if(c.length && rnd()<this.aggr){ let best=null,bs=1e9; for(const o of c){ let s=o.pos.distanceTo(me.pos); if(o.owner===player) s*=0.55; if(s<bs){bs=s;best=o;} } this.target=best; }
     else { this.target=null; this.goal.u=R(-0.8,0.8); this.goal.v=R(0.5,1.1); this.goal.L=R(40,140); } }
 }
+_s=777002; // bots nos mesmos telhados pra todo mundo da sala
 { const used=new Set();
   for(let i=0;i<7;i++){ const a=i/7*TAU+R(-.3,.3), d=R(45,120), tx=Math.cos(a)*d, tz=Math.sin(a)*d;
     let best=null,bd=1e9; for(const h of houses){ if(used.has(h))continue; const dd=Math.hypot(h.cx-tx,h.cz-tz); if(dd<bd && Math.hypot(h.cx-START.x,h.cz-START.z)>35){bd=dd;best=h;} }
@@ -1125,7 +1146,7 @@ function updateCombat(dt){
 const remnants=[];
 function cutKite(v,cutter,s){
   const owner=v.owner; const cut=v.curve(s,V());
-  if(owner===player && v.netId) netSend('cut',{k:v.netId,by:cutter.remote&&cutter.owner?cutter.owner.id:null,bn:cutter.ownerName,c:[cut.x,cut.y,cut.z].map(r2),s});
+  if((owner===player || (owner instanceof Flyer && NET.host && !owner.remoteCtl)) && v.netId) netSend('cut',{k:v.netId,by:cutter.remote&&cutter.owner?cutter.owner.id:null,bn:cutter.ownerName,c:[cut.x,cut.y,cut.z].map(r2),s});
   const pts=[]; for(let i=0;i<=10;i++){ v.curve(s*i/10,T1); pts.push(T1.x,T1.y,T1.z); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
   const ln=new THREE.Line(g,LINE_MAT.clone()); ln.frustumCulled=false; scene.add(ln); remnants.push({ln,t:0,vy:0});
@@ -1288,7 +1309,7 @@ lz.addEventListener('pointerup',()=>lookId=null); lz.addEventListener('pointerca
 if(!TOUCH){ jz.hidden=true; lz.hidden=true; } else $('#keys').hidden=true;
 
 const vsBtn=$('#b-vs'), vsName=$('#vs-name');
-vsBtn.addEventListener('click',()=>{ const fl=vsBtn._f; if(!fl||!player.kite) return; vs={f:fl}; fl.target=player.kite; fl.aiT=1.5; vsBtn.hidden=true;
+vsBtn.addEventListener('click',()=>{ const fl=vsBtn._f; if(!fl||!player.kite) return; vs={f:fl}; if(fl.remoteCtl&&player.kite.netId) netSend('vs',{f:flyers.indexOf(fl)}); fl.target=player.kite; fl.aiT=1.5; vsBtn.hidden=true;
   toast('VS!',`${fl.name} topou o desafio. Quem relar ganha R$ 100`); feed(`Você desafiou <em>${fl.name}</em>`); Sx.click(1); });
 const shop={shape:'pipa',design:DESIGNS[0]};
 const shopEl=$('#shop'), shopCanvas=$('#shop-canvas');
@@ -1577,32 +1598,73 @@ const thumbWait=setInterval(()=>{ if(avReady){ clearInterval(thumbWait); renderT
    Cada jogador manda o próprio estado 8x por segundo (posição, veículo e pipa). Cada um é dono da própria pipa:
    o cruzo é calculado nos dois lados, mas só o dono corta a própria linha e avisa a sala ("cut"). */
 const SBCFG={url:'https://efsajtariawxlhwfgpzg.supabase.co',key:'sb_publishable_N-qypp-vJ0AmblmYjrXbYg_LQLldJxb'}; // projeto 'paintball' (chave publicável, feita pro navegador)
-const NET={on:false,ch:null,id:Math.random().toString(36).slice(2,10),name:'',peers:new Map(),sendT:0,seq:0,status:'conectando'};
+const NET={on:false,ch:null,sb:null,id:Math.random().toString(36).slice(2,10),name:'',peers:new Map(),sendT:0,botT:0,seq:0,status:'conectando',room:'',host:false,joinT:Date.now(),members:[]};
 const r2=x=>Math.round(x*100)/100;
 try{ NET.name=localStorage.getItem('ceu_nick')||''; }catch(e){}
 if(!NET.name) NET.name='Pipeiro'+Math.floor(Math.random()*900+100);
 $('#nick').value=NET.name;
-$('#nick').addEventListener('input',e=>{ NET.name=(e.target.value||'').trim().slice(0,14)||NET.name; try{ localStorage.setItem('ceu_nick',NET.name); }catch(_){} });
+$('#nick').addEventListener('input',e=>{ NET.name=(e.target.value||'').trim().slice(0,14)||NET.name; try{ localStorage.setItem('ceu_nick',NET.name); }catch(_){}
+  clearTimeout(NET.nickT); NET.nickT=setTimeout(()=>{ if(NET.ch&&NET.on){ try{ NET.ch.track({n:NET.name,t:NET.joinT}); }catch(e){} } },600); });
 function netStatus(t){ NET.status=t; const el=$('#net-status'); if(el) el.textContent='Online: '+t; }
-function netStart(){
+function roomName(){ return NET.room?'sala '+NET.room:'praça aberta'; }
+function netStart(room){
   if(!window.supabase||!window.supabase.createClient){ netStatus('indisponível aqui (jogue pelo link do GitHub)'); return; }
+  if(room!==undefined) NET.room=room;
   try{
-    const sb=window.supabase.createClient(SBCFG.url,SBCFG.key,{realtime:{params:{eventsPerSecond:30}}});
-    const ch=sb.channel('ceudelaje-praca',{config:{broadcast:{self:false}}});
+    if(!NET.sb) NET.sb=window.supabase.createClient(SBCFG.url,SBCFG.key,{realtime:{params:{eventsPerSecond:30}}});
+    if(NET.ch){ try{ NET.ch.send({type:'broadcast',event:'bye',payload:{id:NET.id}}); }catch(e){} NET.sb.removeChannel(NET.ch); NET.ch=null; NET.on=false; }
+    for(const id of [...NET.peers.keys()]) netDrop(id,true);
+    NET.host=false; NET.joinT=Date.now(); setBotControl(false);
+    netStatus('entrando na '+roomName()+'…');
+    const ch=NET.sb.channel('ceudelaje-'+(NET.room||'praca'),{config:{broadcast:{self:false},presence:{key:NET.id}}});
     ch.on('broadcast',{event:'st'},({payload})=>netState(payload))
       .on('broadcast',{event:'cut'},({payload})=>netCut(payload))
       .on('broadcast',{event:'caught'},({payload})=>netCaught(payload))
+      .on('broadcast',{event:'bots'},({payload})=>netBots(payload))
+      .on('broadcast',{event:'vs'},({payload})=>netVs(payload))
       .on('broadcast',{event:'bye'},({payload})=>netDrop(payload.id))
-      .subscribe(st=>{ if(st==='SUBSCRIBED'){ NET.on=true; netStatus('conectado na praça'); }
-        else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){ NET.on=false; netStatus('sem conexão (no link do Claude não funciona, use o do GitHub)'); }
-        else if(st==='CLOSED'){ NET.on=false; netStatus('desconectado'); } });
+      .on('presence',{event:'sync'},()=>netPresence())
+      .subscribe(async st=>{ if(ch!==NET.ch) return;
+        if(st==='SUBSCRIBED'){ NET.on=true; netStatus('conectado na '+roomName()); try{ await ch.track({n:NET.name,t:NET.joinT}); }catch(e){} netPresence(); }
+        else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){ NET.on=false; netStatus('sem conexão (no link do Claude não funciona, use o do GitHub)'); setBotControl(true); }
+        else if(st==='CLOSED'){ NET.on=false; } });
     NET.ch=ch;
-    addEventListener('beforeunload',()=>{ try{ ch.send({type:'broadcast',event:'bye',payload:{id:NET.id}}); }catch(e){} });
-  }catch(e){ netStatus('erro ao conectar'); }
+  }catch(e){ netStatus('erro ao conectar'); setBotControl(true); }
 }
+addEventListener('beforeunload',()=>{ try{ NET.ch&&NET.ch.send({type:'broadcast',event:'bye',payload:{id:NET.id}}); }catch(e){} });
+// dono da sala = quem entrou primeiro; se ele sai, o próximo assume os bots
+function netPresence(){ if(!NET.ch) return; const st=NET.ch.presenceState(); const list=[];
+  for(const key in st){ const m=st[key][0]||{}; list.push({id:key,n:m.n||'?',t:m.t||0}); }
+  if(!list.some(m=>m.id===NET.id)) list.push({id:NET.id,n:NET.name,t:NET.joinT});
+  list.sort((a,b)=>a.t-b.t||(a.id<b.id?-1:1)); NET.members=list;
+  const host=list[0].id===NET.id; if(host!==NET.host){ NET.host=host; if(running) toast(host?'VOCÊ É O DONO DA SALA':'SALA CONECTADA',host?'Os bots da sala rodam no seu aparelho':'Os bots seguem o dono da sala'); }
+  setBotControl(host); roomInfo(); }
+function setBotControl(isHost){ for(const fl of flyers){ const wasPuppet=!!fl.remoteCtl; fl.remoteCtl=!isHost;
+    if(isHost && wasPuppet && fl.kite && fl.kite.owner===fl){ fl.kite.remote=false; if(fl.kite.state==='flying'){ fl.kite.setFromPos(); } }
+    if(!isHost && !wasPuppet && fl.kite && fl.kite.owner===fl && fl.kite.state==='flying'){ fl.kite.dispose(); fl.kite=null; } } }
+function roomInfo(){ const n=NET.members.length||1; const el=$('#room-info'); if(!el) return;
+  const who=NET.members.map(m=>m.id===NET.id?m.n+' (você)':m.n).join(', ');
+  el.textContent=`Você está na ${roomName()} · ${n} jogador${n>1?'es':''}${NET.host?' · você é o dono (roda os bots)':''}${n>5?' · sala grande: pode travar no servidor grátis':''}${who?' · '+who:''}`;
+  const lk=$('#room-link'); lk.hidden=!NET.room; if(NET.room) lk.dataset.url=location.origin+location.pathname+'?sala='+NET.room; }
+// pedido de Vs de um convidado: o dono manda o bot ir pra cima da pipa dele
+function netVs(pl){ if(!NET.host) return; const fl=flyers[pl.f], p=NET.peers.get(pl.id); if(!fl||!p||!p.kite) return; fl.vsKite=p.kite; fl.target=p.kite; fl.aiT=1.5; feed(`<em>${p.name}</em> desafiou <em>${fl.name}</em>`); }
+// dono manda o estado das pipas dos bots; convidados aplicam
+function netBotTick(dt){ if(!NET.host||!NET.on||NET.members.length<2) return; NET.botT-=dt; if(NET.botT>0) return; NET.botT=1/netRate(true);
+  const b=flyers.map((fl,i)=>{ const k=fl.kite; if(!k||k.owner!==fl||(k.state!=='flying'&&k.state!=='crashed')) return 0;
+    return {i:k.netId,d:DESIGNS.indexOf(k.design),sh:k.shape,p:[r2(k.pos.x),r2(k.pos.y),r2(k.pos.z)],L:r2(k.L),sg:r2(k.sag),hd:r2(k.heading),m:k.mode,st:k.state,q:k.quality}; });
+  netSend('bots',{b}); }
+function netBots(pl){ if(NET.host||!pl.b) return;
+  pl.b.forEach((kk,i)=>{ const fl=flyers[i]; if(!fl) return; if(!fl.remoteCtl) fl.remoteCtl=true;
+    if(kk){ if(!fl.kite||fl.kite.netId!==kk.i){ if(fl.kite&&fl.kite.owner===fl&&fl.kite.state==='flying') fl.kite.dispose();
+        const k=new Kite(DESIGNS[kk.d]||DESIGNS[0],fl,kk.sh||'pipa'); k.remote=true; k.netId=kk.i; k.pos.set(...kk.p); k.hand.copy(fl.hand); fl.kite=k; fl.kt={pos:new THREE.Vector3(...kk.p)}; }
+      const k=fl.kite; fl.kt.pos.set(...kk.p); k.L=kk.L; k.sag=kk.sg; k.heading=kk.hd; k.mode=kk.m||'idle'; k.quality=kk.q||1; if(k.state==='flying'||k.state==='crashed') k.state=kk.st; }
+    else if(fl.kite&&fl.kite.owner===fl&&fl.kite.state!=='free'&&fl.kite.state!=='landed'){ fl.kite.dispose(); fl.kite=null; } }); }
+// quanto mais gente na sala, menos vezes cada um manda (o grátis aguenta ~100 mensagens/s no total)
+function netRate(bots){ const n=Math.max(1,NET.members.length); const r=clamp(70/(n*n),0.8,4); return bots?clamp(r*0.8,0.8,3):r; }
 function netSend(ev,payload){ if(!NET.on||!NET.ch) return; payload.id=NET.id; try{ NET.ch.send({type:'broadcast',event:ev,payload}); }catch(e){} }
 function netTick(dt){
-  NET.sendT-=dt; if(NET.sendT>0||!NET.on||!running) return; NET.sendT=0.25; // 4x por segundo no máximo
+  netBotTick(dt);
+  NET.sendT-=dt; if(NET.sendT>0||!NET.on||!running) return; NET.sendT=1/netRate(false); // 4x por segundo no máximo, menos em sala cheia
   const k=player.kite, v=player.veh;
   if(k && !k.netId) k.netId=NET.id+'-'+(++NET.seq);
   const pl={n:NET.name,av:player.person.av,p:[r2(player.pos.x),r2(player.pos.y),r2(player.pos.z)],f:r2(player.face),s:r2(player.speed||0),
@@ -1618,7 +1680,7 @@ function netState(pl){
   if(!pl||!pl.id||pl.id===NET.id) return;
   let p=NET.peers.get(pl.id);
   if(!p){ p={id:pl.id,name:pl.n||'Jogador',remote:true,kite:null,person:makePerson(0x7fd0f0,{av:pl.av||'Male_Adult_08'}),cur:new THREE.Vector3(...pl.p),tgt:new THREE.Vector3(...pl.p),face:pl.f||0,spd:0,last:0,veh:null,vehMdl:null,label:null};
-    p.person.g.position.copy(p.cur); NET.peers.set(pl.id,p); feed(`<em>${p.name}</em> entrou na praça`); }
+    p.person.g.position.copy(p.cur); NET.peers.set(pl.id,p); feed(`<em>${p.name}</em> entrou na ${roomName()}`); }
   p.name=pl.n||p.name; p.last=performance.now(); p.tgt.set(...pl.p); p.face=pl.f; p.spd=pl.s||0;
   if(pl.av && p.person.av!==pl.av && avReady){ if(p.person.model){ p.person.g.remove(p.person.model); p.person.model=null; if(p.person.can){ scene.remove(p.person.can); scene.remove(p.person.canLine); p.person.can=null; } } p.person.av=pl.av; attachAvatar(p.person); }
   // veículo
@@ -1633,12 +1695,13 @@ function netState(pl){
     const k=p.kite; p.kt.pos.set(...kk.p); p.kt.hand.set(...kk.h); k.L=kk.L; k.sag=kk.sg; k.heading=kk.hd; k.mode=kk.m||'idle'; k.quality=kk.q||1; if(k.state!=='free'&&k.state!=='landed'&&k.state!=='towed') k.state=kk.st; }
   else if(p.kite && p.kite.owner===p){ p.kite.dispose(); p.kite=null; }
 }
-function netCut(pl){ const p=NET.peers.get(pl.id); if(!p||!p.kite||p.kite.netId!==pl.k||p.kite.owner!==p) return;
+function netCut(pl){ const p=NET.peers.get(pl.id); let victim=p&&p.kite&&p.kite.netId===pl.k&&p.kite.owner===p?p.kite:null;
+  if(!victim) victim=kites.find(k=>k.netId===pl.k && k.owner instanceof Flyer && k.state==='flying'); if(!victim) return;
   let cutter; if(pl.by===NET.id && player.kite) cutter=player.kite;
   else { const cp=pl.by&&NET.peers.get(pl.by); cutter=(cp&&cp.kite)||{ownerName:pl.bn||'um moleque',owner:{name:pl.bn||'?'},remote:false}; }
-  cutKite(p.kite,cutter,pl.s||0.5); }
+  cutKite(victim,cutter,pl.s||0.5); }
 function netCaught(pl){ for(const k of kites.slice()) if(k.netId===pl.k && (k.state==='free'||k.state==='landed'||k.state==='towed')){ if(player.tow===k) player.tow=null; feed(`<em>${pl.n||'Alguém'}</em> aparou uma pipa`); k.dispose(); } }
-function netDrop(id){ const p=NET.peers.get(id); if(!p) return; removePerson(p.person); if(p.vehMdl) scene.remove(p.vehMdl.root); if(p.kite&&p.kite.owner===p) p.kite.dispose(); if(p.label) p.label.remove(); NET.peers.delete(id); feed(`<em>${p.name}</em> saiu`); }
+function netDrop(id,quiet){ const p=NET.peers.get(id); if(!p) return; removePerson(p.person); if(p.vehMdl) scene.remove(p.vehMdl.root); if(p.kite&&p.kite.owner===p) p.kite.dispose(); if(p.label) p.label.remove(); NET.peers.delete(id); if(!quiet) feed(`<em>${p.name}</em> saiu`); }
 function netUpdate(dt){
   netTick(dt);
   const nowMs=performance.now();
@@ -1654,12 +1717,18 @@ function netUpdate(dt){
     if(k){ k.pos.lerp(p.kt.pos,a); k.hand.lerp(p.kt.hand,a); if(personHand(p.person,T5)) k.hand.lerp(T5,0.5); k.visual(dt); }
     animPerson(p.person,p.veh?0:Math.min(p.spd,7),dt,!!k,k&&k.mode==='pull',k&&k.pos);
   }
-  setText($('#st-online'),'on',NET.on?String(NET.peers.size+1):'OFF');
+  setText($('#st-online'),'on',NET.on?String(NET.peers.size+1):'OFF'); setText($('#chip-online').firstChild,'rn',NET.room?'Sala '+NET.room:'Praça');
 }
 function netLabels(){ for(const p of NET.peers.values()){ if(!p.label){ p.label=document.createElement('div'); p.label.className='klabel peer'; labelsEl.appendChild(p.label); }
   T5.copy(p.cur); T5.y+=2.3; const [x,y,z]=project(T5); const vis=z<1&&x>0&&x<innerWidth&&y>0&&y<innerHeight&&camera.position.distanceTo(p.cur)<120; p.label.hidden=!vis;
   if(vis){ p.label.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`; if(p.label.textContent!==p.name) p.label.textContent=p.name; } } }
-netStart(); window.__netReady=true;
+{ let sala=''; try{ sala=(new URLSearchParams(location.search).get('sala')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); }catch(e){} netStart(sala); }
+window.__netReady=true;
+const newRoomCode=()=>{ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; };
+$('#room-new').addEventListener('click',()=>{ netStart(newRoomCode()); });
+$('#room-open').addEventListener('click',()=>{ netStart(''); });
+$('#room-join').addEventListener('click',()=>{ const c=($('#room-code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); if(c.length>=3) netStart(c); else netStatus('digite o código da sala (4 letras)'); });
+$('#room-link').addEventListener('click',async()=>{ const u=$('#room-link').dataset.url||''; try{ await navigator.clipboard.writeText(u); $('#room-link').textContent='LINK COPIADO'; }catch(e){ $('#room-code').value=u; $('#room-code').select(); $('#room-link').textContent='COPIE O LINK'; } setTimeout(()=>$('#room-link').textContent='COPIAR LINK DA SALA',2200); });
 $('#play').addEventListener('click',()=>{
   $('#menu').hidden=true; $('#hud').hidden=false; running=true; Sx.init();
   player.inv=[{d:player.design,s:'pipa'},{d:player.design,s:'pipa'}];
