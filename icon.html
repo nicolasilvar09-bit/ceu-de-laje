@@ -1,0 +1,51 @@
+<!doctype html><meta charset="utf-8"><title>ícone</title>
+<!-- Gera o ícone do Céu de Laje (arte própria, desenhada em canvas). Abrir via serve.js: salva os PNGs em assets/web/ -->
+<body style="margin:0;background:#222;display:flex;gap:16px;padding:16px;align-items:flex-start">
+<canvas id="c" width="1024" height="1024" style="width:512px;height:512px"></canvas>
+<script>
+const c=document.getElementById('c'), g=c.getContext('2d'), S=1024;
+let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+// fundo: céu de fim de tarde
+const sky=g.createLinearGradient(0,0,0,S); sky.addColorStop(0,'#1f6fc7'); sky.addColorStop(0.55,'#5fb0ea'); sky.addColorStop(0.82,'#ffc46b'); sky.addColorStop(1,'#ff8a3d');
+g.fillStyle=sky; g.fillRect(0,0,S,S);
+// sol com brilho
+const sun=g.createRadialGradient(780,720,10,780,720,260); sun.addColorStop(0,'rgba(255,248,214,1)'); sun.addColorStop(0.25,'rgba(255,224,140,.9)'); sun.addColorStop(1,'rgba(255,200,100,0)');
+g.fillStyle=sun; g.fillRect(0,0,S,S); g.fillStyle='#fff6d6'; g.beginPath(); g.arc(780,720,70,0,Math.PI*2); g.fill();
+// nuvens suaves
+for(const [x,y,r] of [[170,250,70],[240,230,90],[320,260,60],[640,170,50],[700,150,70],[770,180,50]]){ const cg=g.createRadialGradient(x,y,0,x,y,r); cg.addColorStop(0,'rgba(255,255,255,.75)'); cg.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=cg; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill(); }
+// morro do fundo com casinhas
+g.fillStyle='#3d3a5c'; g.beginPath(); g.moveTo(0,S); g.lineTo(0,780); g.quadraticCurveTo(260,640,520,760); g.quadraticCurveTo(760,690,S,800); g.lineTo(S,S); g.fill();
+const cols=['#e3ac3c','#e39aa6','#7db7e0','#f3efe6','#c46b4a','#7fc6b0'];
+for(let i=0;i<120;i++){ const x=rnd()*S, y=760+rnd()*120-(x<520?Math.sin(x/520*Math.PI)*80:Math.sin((x-520)/504*Math.PI)*40); g.globalAlpha=.55; g.fillStyle=cols[i%cols.length]; g.fillRect(x,y,18+rnd()*12,12+rnd()*8); }
+g.globalAlpha=1;
+// lajes na frente (silhueta) com caixas d'água e vergalhão
+g.fillStyle='#1a1f2e';
+const tops=[[0,860],[120,820],[230,870],[330,800],[470,850],[580,780],[700,830],[820,800],[930,850],[1024,850]];
+g.beginPath(); g.moveTo(0,S); for(let i=0;i<tops.length-1;i++){ const [x0,y0]=tops[i],[x1]=tops[i+1]; g.lineTo(x0,y0); g.lineTo(x1,y0); } g.lineTo(S,S); g.fill();
+for(const [x,y] of [[150,820],[365,800],[610,780],[860,800]]){ g.fillRect(x,y-46,52,46); g.fillRect(x-4,y-52,60,8); }
+for(const x of [490,505,520]) g.fillRect(x,808,5,42);
+// janelinhas acesas
+g.fillStyle='#ffd27a'; for(const [x,y] of [[40,920],[190,900],[270,940],[400,880],[520,920],[640,860],[740,900],[880,880],[960,930]]) g.fillRect(x,y,26,22);
+// linha da pipa saindo da laje
+g.strokeStyle='rgba(255,255,255,.9)'; g.lineWidth=5; g.beginPath(); g.moveTo(330,800); g.quadraticCurveTo(470,640,560,520); g.stroke();
+// rabiola listrada ondulando
+g.save(); g.lineWidth=22; g.lineCap='round';
+for(let i=0;i<14;i++){ const t0=i/14,t1=(i+1)/14; const p=t=>[560-t*260+Math.sin(t*9)*40, 520+t*300]; const [a,b]=p(t0),[cx,cy]=p(t1);
+  g.strokeStyle=i%2?'#ffd23f':'#ffffff'; g.beginPath(); g.moveTo(a,b); g.lineTo(cx,cy); g.stroke(); }
+g.restore();
+// pipa Tricolor (formato pipa: cabeça pontuda, ombros largos)
+g.save(); g.translate(600,360); g.rotate(-0.22); const K=230;
+const P=[[0,-1],[0.78,-0.28],[0.56,0.5],[0,0.92],[-0.56,0.5],[-0.78,-0.28]].map(([x,y])=>[x*K,y*K]);
+const path=()=>{ g.beginPath(); P.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y)); g.closePath(); };
+g.shadowColor='rgba(0,0,0,.35)'; g.shadowBlur=30; g.shadowOffsetY=14; path(); g.fillStyle='#1d4fa8'; g.fill(); g.shadowColor='transparent';
+g.save(); path(); g.clip(); g.fillStyle='#e8412f'; g.fillRect(-K,-K*1.2,K,K*2.4); g.fillStyle='#ffd23f'; g.beginPath(); g.moveTo(-K,-0.28*K); g.lineTo(K,-0.28*K); g.lineTo(0,-1.2*K); g.closePath(); g.fill();
+// brilho do papel de seda
+const sh=g.createLinearGradient(-K,-K,K,K); sh.addColorStop(0,'rgba(255,255,255,.28)'); sh.addColorStop(0.5,'rgba(255,255,255,0)'); g.fillStyle=sh; g.fillRect(-K,-K,2*K,2*K); g.restore();
+g.lineWidth=10; g.strokeStyle='#14202e'; path(); g.stroke();
+g.lineWidth=7; g.strokeStyle='#6b4a2a'; g.beginPath(); g.moveTo(0,-K); g.lineTo(0,0.92*K); g.stroke(); g.beginPath(); g.moveTo(-0.78*K,-0.28*K); g.quadraticCurveTo(0,-0.62*K,0.78*K,-0.28*K); g.stroke();
+g.restore();
+// exporta
+async function save(size,name){ const o=document.createElement('canvas'); o.width=o.height=size; const og=o.getContext('2d'); og.imageSmoothingQuality='high'; og.drawImage(c,0,0,size,size);
+  const blob=await new Promise(r=>o.toBlob(r,'image/png')); const r=await fetch('/save?name='+name,{method:'POST',body:blob}); return name+' '+(await r.text())+' '+Math.round(blob.size/1024)+'KB'; }
+(async()=>{ const out=[]; for(const [s,n] of [[1024,'icon-1024.png'],[512,'icon-512.png'],[192,'icon-192.png'],[180,'apple-touch-icon.png'],[32,'favicon-32.png']]) out.push(await save(s,n)); window.done=out.join('\n'); })();
+</script>
