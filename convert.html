@@ -33,8 +33,9 @@ function regroup(geo){
     // com índice, cada material vira um trecho próprio no glTF (sem índice o exportador repete a malha inteira em cada material)
     const seq=new Uint32Array(order.length); for(let i=0;i<seq.length;i++) seq[i]=i; out.setIndex(new THREE.BufferAttribute(seq,1)); }
   newGroups.forEach(g=>out.addGroup(g.start,g.count,g.materialIndex)); return out; }
-function keepTracks(clip,prefix){
-  const tracks=clip.tracks.filter(t=>t.name.endsWith('.quaternion') && !/Footsteps/.test(t.name)).map(t=>{ const c=t.clone(); c.name=c.name.replace(/^Bip01/,prefix); return c; });
+// só trilhas de rotação de ossos que existem no modelo: o GLTFExporter r128 descarta a animação INTEIRA se uma trilha aponta pra nó inexistente
+function keepTracks(clip,prefix,model){
+  const tracks=clip.tracks.filter(t=>t.name.endsWith('.quaternion') && !/Footsteps/.test(t.name)).map(t=>{ const c=t.clone(); c.name=c.name.replace(/^Bip01/,prefix); return c; }).filter(t=>model.getObjectByName(t.name.slice(0,t.name.lastIndexOf('.'))));
   return new THREE.AnimationClip(clip.name,clip.duration,tracks);
 }
 async function people(){
@@ -54,7 +55,7 @@ async function people(){
         const nm=new THREE.MeshStandardMaterial({name:m.name,map:tex[part]||null,normalMap:nor[part]||null,roughness:part==='head'?0.62:0.85,metalness:0,skinning:true});
         if(part==='opacity'){ nm.transparent=false; nm.alphaTest=0.5; nm.side=THREE.DoubleSide; } return nm; });
         c.material=Array.isArray(c.material)?mats:mats[0]; } });
-    o.animations=[keepTracks(clips.idle,prefix),keepTracks(clips.walk,prefix),keepTracks(clips.run,prefix)];
+    o.animations=[keepTracks(clips.idle,prefix,o),keepTracks(clips.walk,prefix,o),keepTracks(clips.run,prefix,o)];
     // glTF em JSON com tudo embutido (o host do artifact não serve .glb, mas serve .json)
     const gl=await new Promise(res=>new THREE.GLTFExporter().parse(o,res,{binary:false,animations:o.animations,embedImages:true,onlyVisible:false}));
     const txt=JSON.stringify(gl); log(name+' '+prefix+' '+Math.round(txt.length/1024)+'KB '+await save(name+'.gltf.json',txt));

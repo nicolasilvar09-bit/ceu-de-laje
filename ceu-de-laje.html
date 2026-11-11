@@ -119,6 +119,12 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 .line-opt button{border:none;border-radius:8px;padding:8px 10px;font-size:12px;background:var(--pipa);color:var(--ink);white-space:nowrap}
 .line-opt button:disabled{background:#d9d4c8}
 @media (max-width:620px){ .shop-body{grid-template-columns:1fr} .shop-grid{grid-template-columns:repeat(4,1fr)} }
+#b-talk{position:absolute;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);pointer-events:auto;border:none;border-radius:12px;
+  background:var(--pipa);color:var(--ink);font-size:18px;padding:10px 18px;box-shadow:0 4px 0 rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;line-height:1.1}
+#b-talk small{font-family:var(--body);font-size:10px;opacity:.75}
+#shopmark{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;width:80px}
+#shopmark i{width:0;height:0;border:9px solid transparent;border-top:14px solid #7fd0f0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+#shopmark span{font-family:var(--display);font-size:12px;color:#7fd0f0;text-shadow:0 1px 0 var(--ink),0 0 4px var(--ink)}
 #b-enter{position:absolute;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(270px + env(safe-area-inset-bottom,0px));pointer-events:auto;border:none;border-radius:12px;
   background:#fff;color:var(--ink);font-size:14px;padding:10px 14px;box-shadow:0 4px 0 rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;line-height:1.1}
 #b-enter small{font-family:var(--body);font-size:10px;opacity:.7}
@@ -210,6 +216,8 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <div id="li-len">Linha 0 m · Altura 0 m</div>
   </div>
   <button id="b-mount" hidden>Montar pipa nova</button>
+  <button id="b-talk" hidden>COMPRAR<small>com o vendedor · G</small></button>
+  <div id="shopmark" hidden><i></i><span>LOJA</span></div>
   <button id="b-enter" hidden>ENTRAR<small>F</small></button>
   <button id="b-vs" hidden>VS<small id="vs-name"></small></button>
   <div id="shop" hidden>
@@ -461,6 +469,7 @@ function buildCity(){
     for(let i=0;i<4;i++) for(let j=0;j<4;j++){
       const x0=ox+i*8, z0=oz+j*8, cx=x0+4, cz=z0+4;
       const isStart=(bx===0&&bz===0&&i===0&&j===0);
+      if(bx===0&&bz===0&&i===0&&j===2) continue; // lote da loja de pipas
       if(!isStart && rnd()<0.07){ // terreno baldio com árvore
         if(rnd()<0.6){ M4.makeScale(1,1,1).setPosition(cx+R(-2,2),0,cz+R(-2,2));
           const tx=M4.elements[12],tz=M4.elements[14];
@@ -652,6 +661,56 @@ function kiteTex(d,shape='pipa'){ const key=d.name+'|'+shape; if(texCache.has(ke
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; t.encoding=THREE.sRGBEncoding; texCache.set(key,t); return t; }
 
 buildCity();
+/* loja de pipas da esquina: ponto comercial aberto pra rua, com pipas na parede, carretéis e balcão */
+const SHOP={x0:4,x1:12,z0:20,z1:28,door:new THREE.Vector3(4,1.4,24)};
+function signTex(){ const c=document.createElement('canvas'); c.width=1024; c.height=160; const g=c.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,160); gr.addColorStop(0,'#ffd23f'); gr.addColorStop(1,'#f0a81a'); g.fillStyle=gr; g.fillRect(0,0,1024,160);
+  g.fillStyle='#e8412f'; g.fillRect(0,0,1024,14); g.fillRect(0,146,1024,14);
+  g.font='900 92px Impact, "Arial Black", sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.lineWidth=10; g.strokeStyle='#14202e'; g.strokeText('PIPAS & LINHAS',512,82); g.fillStyle='#fff'; g.fillText('PIPAS & LINHAS',512,82);
+  for(const [x,d] of [[70,0],[954,3]]){ const kc=document.createElement('canvas'); kc.width=kc.height=120; drawKite(kc.getContext('2d'),120,DESIGNS[d]); g.drawImage(kc,x-55,20,110,110); }
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=8; return t; }
+function tileTex(){ const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){ g.fillStyle=(i+j)%2?'#b8342a':'#efe6d6'; g.fillRect(i*32,j*32,32,32); }
+  for(let i=0;i<300;i++){ g.fillStyle='rgba(0,0,0,'+Math.random()*0.08+')'; g.fillRect(Math.random()*128,Math.random()*128,2,2); }
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(5,5); return t; }
+const shopVendor={person:null};
+function buildShop(){
+  const g=new THREE.Group(); scene.add(g);
+  const pw=texSet('painted_plaster_wall'); pw.d.repeat.set(2.5,1.2); pw.n.repeat.set(2.5,1.2);
+  const wallM=new THREE.MeshStandardMaterial({map:pw.d,normalMap:pw.n,color:LC(0x7db7e0),roughness:0.95});
+  const inM=new THREE.MeshStandardMaterial({color:LC(0xf3efe6),roughness:0.95}), wood=new THREE.MeshStandardMaterial({color:LC(0x8a5a32),roughness:0.7}),
+        metal=new THREE.MeshStandardMaterial({color:LC(0x8d939a),metalness:0.7,roughness:0.4}), slab=new THREE.MeshStandardMaterial({color:LC(0xcfc9bd),roughness:0.95});
+  const box=(x0,x1,y0,y1,z0,z1,m,coll)=>{ const o=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,y1-y0,z1-z0),m); o.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2); o.castShadow=true; o.receiveShadow=true; g.add(o);
+    if(coll) world.add({x0,x1,z0,z1,top:y1}); return o; };
+  // paredes (por fora azul, por dentro branca), teto e laje
+  box(11.7,12,0.18,3.6,20,28,wallM,true); box(4,12,0.18,3.6,20,20.3,wallM,true); box(4,12,0.18,3.6,27.7,28,wallM,true);
+  box(11.66,11.7,0.18,3.5,20.3,27.7,inM); box(4.3,11.7,0.18,3.5,20.3,20.34,inM); box(4.3,11.7,0.18,3.5,27.66,27.7,inM);
+  box(4,12,3.6,3.82,20,28,slab); box(4,4.32,2.9,3.6,20,28,wallM);
+  const roll=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,7.4,12).rotateX(Math.PI/2),metal); roll.position.set(4.2,2.72,24); g.add(roll);
+  // piso de caquinho
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(7.4,7.4),new THREE.MeshStandardMaterial({map:tileTex(),roughness:0.6})); fl.rotation.x=-Math.PI/2; fl.position.set(8,0.195,24); fl.receiveShadow=true; g.add(fl);
+  // letreiro
+  const sg=new THREE.Mesh(new THREE.PlaneGeometry(7.6,1.0),new THREE.MeshStandardMaterial({map:signTex(),roughness:0.6,emissive:LC(0x222222)})); sg.position.set(3.97,3.25,24); sg.rotation.y=-Math.PI/2; g.add(sg);
+  // balcão com tampo de vidro e caixa registradora
+  box(8.6,9.2,0.18,1.1,21.4,26.6,wood,true); box(8.55,9.25,1.1,1.14,21.35,26.65,new THREE.MeshStandardMaterial({color:LC(0xbfd8e2),transparent:true,opacity:0.5,roughness:0.05}));
+  box(8.7,9.1,1.14,1.42,25.6,26.2,new THREE.MeshStandardMaterial({color:LC(0x2b2b2e),roughness:0.5}));
+  // prateleira de carretéis e latas de linha
+  const SPOOL=new THREE.CylinderGeometry(0.11,0.11,0.16,12);
+  for(const y of [1.0,1.6,2.2]){ box(11.2,11.66,y-0.04,y,20.5,27.5,wood);
+    for(let z=20.8;z<27.3;z+=0.32){ const sp=new THREE.Mesh(SPOOL,new THREE.MeshStandardMaterial({color:LC(pick([0xe8412f,0xffd23f,0x1d4fa8,0x2fa84f,0xf4f4f4,0x8e44ad,0xff7a1a])),roughness:0.7})); sp.position.set(11.4,y+0.08,z); g.add(sp); } }
+  // pipas penduradas nas duas paredes laterais, com rabiolas
+  for(const side of [0,1]){ const zw=side?27.64:20.36, ry=side?Math.PI:0;
+    for(let x=5.0;x<8.4;x+=0.85) for(let y=1.45;y<3.2;y+=0.62){ const d=pick(DESIGNS), sh=pick(SHAPE_KEYS);
+      const k=new THREE.Mesh(kiteGeos[sh],new THREE.MeshStandardMaterial({map:kiteTex(d,sh),side:THREE.DoubleSide,roughness:0.8})); k.scale.setScalar(0.27); k.position.set(x,y,zw); k.rotation.set(0,ry,R(-0.15,0.15)); g.add(k);
+      const rb=new THREE.Mesh(new THREE.PlaneGeometry(0.03,0.42),new THREE.MeshBasicMaterial({color:LC(d.tail)})); rb.position.set(x,y-0.45,zw+(side?-0.01:0.01)); rb.rotation.y=ry; g.add(rb); } }
+  // luz quente de dentro
+  const lamp=new THREE.PointLight(0xffe2b0,0.9,11,2); lamp.position.set(7.5,3.2,24); g.add(lamp);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.08,8,6),new THREE.MeshBasicMaterial({color:0xfff2d0})); bulb.position.copy(lamp.position); g.add(bulb);
+  // vendedor atrás do balcão
+  shopVendor.person=makePerson(0x2fa84f,{av:'Male_Adult_08'}); shopVendor.person.g.position.set(10.2,0.18,24); shopVendor.person.g.rotation.y=-Math.PI/2;
+}
+const inShop=()=>!player.veh && player.pos.x>SHOP.x0+0.3 && player.pos.x<SHOP.x1-0.3 && player.pos.z>SHOP.z0+0.35 && player.pos.z<SHOP.z1-0.35 && player.pos.y<1.5;
+let shopGPS=false;
 /* pipinhas decorativas distantes */
 const farKites=[];
 for(let i=0;i<16;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:kiteTex(pick(DESIGNS)),transparent:true}));
@@ -911,6 +970,7 @@ function playerHand(){ if(personHand(player.person,player.hand)) return player.h
 /* ---------------- adversários na laje ---------------- */
 const NAMES=['Vitinho','Kauã','Dudu','Lucão','Pedrinho','Caio','Rafa','Tiaguinho'];
 const flyers=[]; let vs=null;
+buildShop(); // depois das pipas e das pessoas, que a loja usa
 class Flyer{
   constructor(name,b){ this.name=name; this.pos=new THREE.Vector3(b.cx,b.top,b.cz); this.person=makePerson(pick(SHIRTS),{adult:rnd()<0.45}); this.person.g.position.copy(this.pos);
     this.kite=null; this.respawn=R(0.5,5); this.aiT=0; this.target=null; this.goal={u:0,v:0.9,L:60}; this.aggr=R(0.35,0.85); this.tol=R(0.25,0.45);
@@ -1139,6 +1199,7 @@ function drawRadar(){
     if(d>range){ if(!free) continue; const a=Math.atan2(x-c,-(y-c)); rctx.save(); rctx.translate(c,c); rctx.rotate(a); rctx.fillStyle='#ffc21a'; rctx.beginPath(); rctx.moveTo(0,-c+3); rctx.lineTo(-6,-c+14); rctx.lineTo(6,-c+14); rctx.fill(); rctx.restore(); continue; }
     if(free){ const p=7+Math.sin(now*8)*2.5; rctx.strokeStyle='#ffc21a'; rctx.lineWidth=3; rctx.beginPath(); rctx.arc(x,y,p,0,TAU); rctx.stroke(); }
     rctx.fillStyle=hex(k.design.tail); rctx.save(); rctx.translate(x,y); rctx.rotate(Math.PI/4); rctx.fillRect(-5,-5,10,10); if(k.owner===player){ rctx.strokeStyle='#fff'; rctx.lineWidth=2.5; rctx.strokeRect(-5,-5,10,10);} rctx.restore(); }
+  { const [x,y,d]=toR(8,24); if(d<range){ rctx.fillStyle='#7fd0f0'; rctx.fillRect(x-7,y-7,14,14); rctx.fillStyle='#14202e'; rctx.font='bold 12px Rubik, sans-serif'; rctx.textAlign='center'; rctx.textBaseline='middle'; rctx.fillText('L',x,y+1); } }
   rctx.fillStyle='#fff'; rctx.beginPath(); rctx.moveTo(c,c-9); rctx.lineTo(c-6,c+6); rctx.lineTo(c+6,c+6); rctx.closePath(); rctx.fill();
 }
 function project(p){ T1.copy(p).project(camera); return [(T1.x+1)/2*innerWidth,(1-T1.y)/2*innerHeight,T1.z]; }
@@ -1170,6 +1231,11 @@ function updateHUD(dt){
     else { y-=26; markerArrow.style.transform=''; }
     markerEl.style.transform=`translate(${x-40}px,${y-20}px)`; markerEl.style.width='80px'; }
   else markerEl.hidden=true;
+  // seta azul até a loja
+  const sm=$('#shopmark'); if(shopGPS && running){ let [x,y,z]=project(SHOP.door); const W=innerWidth,H=innerHeight,m=50; sm.hidden=false;
+    const off=z>1||x<m||x>W-m||y<m||y>H-m; const si=sm.querySelector('i'); const d=Math.hypot(player.pos.x-SHOP.door.x,player.pos.z-SHOP.door.z)|0; sm.querySelector('span').textContent='LOJA '+d+' m';
+    if(off){ let dx=x-W/2, dy=y-H/2; if(z>1){dx=-dx;dy=-dy;} const s2=Math.min((W/2-m)/Math.abs(dx||1),(H/2-m)/Math.abs(dy||1)); x=W/2+dx*s2; y=H/2+dy*s2; si.style.transform=`rotate(${Math.atan2(dy,dx)-Math.PI/2}rad)`; }
+    else { y-=30; si.style.transform=''; } sm.style.transform=`translate(${x-40}px,${y-20}px)`; } else sm.hidden=true;
   // nomes nas pipas rivais
   let li=0; for(const f of flyers){ const fk=f.kite; if(!fk||fk.state!=='flying'||li>=labelPool.length) continue; const d=fk.pos.distanceTo(camera.position); if(d>170) continue;
     const [x,y,z]=project(fk.pos); if(z>1||x<0||x>innerWidth||y<0||y>innerHeight) continue; const el=labelPool[li++]; el.hidden=false; el.style.transform=`translate(${x}px,${y-18}px) translate(-50%,-100%)`; if(el.textContent!==f.name) el.textContent=f.name; }
@@ -1186,7 +1252,7 @@ function updateHUD(dt){
 /* ---------------- entrada ---------------- */
 const keys=new Set(); const btn={pull:false,release:false,reel:false,jump:false,steerL:false,steerR:false};
 const mouse={pull:false,release:false}; let wheelRel=0, wheelReel=0, camUser=0; const joy={x:0,y:0,id:null,ox:0,oy:0};
-addEventListener('keydown',e=>{ if(e.code==='Space'||e.code.startsWith('Arrow')) e.preventDefault(); keys.add(e.code); if(e.code==='KeyR') mountKite(); if(e.code==='KeyF'&&!e.repeat) toggleVehicle(); if(e.code==='KeyV'&&!e.repeat) cycleCam(); if(e.code==='KeyB'&&!e.repeat) toggleVara(); if(e.code==='KeyC'||e.code==='Tab'){ e.preventDefault(); if(!e.repeat) toggleMode(); } });
+addEventListener('keydown',e=>{ if(e.code==='Space'||e.code.startsWith('Arrow')) e.preventDefault(); keys.add(e.code); if(e.code==='KeyR') mountKite(); if(e.code==='KeyF'&&!e.repeat) toggleVehicle(); if(e.code==='KeyV'&&!e.repeat) cycleCam(); if(e.code==='KeyG'&&!e.repeat&&inShop()) openShop(); if(e.code==='KeyB'&&!e.repeat) toggleVara(); if(e.code==='KeyC'||e.code==='Tab'){ e.preventDefault(); if(!e.repeat) toggleMode(); } });
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>{ keys.clear(); mouse.pull=mouse.release=false; for(const k in btn) btn[k]=false; });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
@@ -1231,7 +1297,9 @@ function shopRender(){
 for(const k of SHAPE_KEYS){ const b=document.createElement('button'); b.type='button'; b.dataset.k=k; b.id='shape-'+k; const c=document.createElement('canvas'); c.width=c.height=84; drawKite(c.getContext('2d'),84,DESIGNS[0],k); b.append(c,SHAPES[k].name+' R$ '+SHAPES[k].price); b.onclick=()=>{ shop.shape=k; shopRender(); }; $('#shop-shapes').appendChild(b); }
 DESIGNS.forEach((d,i)=>{ const b=document.createElement('button'); b.type='button'; b.id='sd-'+i; const c=document.createElement('canvas'); c.width=c.height=96; b.append(c,d.name); b.onclick=()=>{ shop.design=d; shopRender(); }; $('#shop-designs').appendChild(b); });
 $('#shop-buy').addEventListener('click',()=>{ const p=SHAPES[shop.shape].price; if(player.money<p) return; player.money-=p; player.inv.push({d:shop.design,s:shop.shape}); $('#shop-msg').textContent=`${SHAPES[shop.shape].name} ${shop.design.name} foi pra mochila (${player.inv.length} pipas)`; Sx.catch(); shopRender(); });
-$('#b-shop').addEventListener('click',()=>{ shopEl.hidden=false; $('#shop-msg').textContent=''; shopRender(); });
+function openShop(){ shopEl.hidden=false; $('#shop-msg').textContent=pick(['Fala, parceiro! Escolhe aí.','Chegou pipa nova hoje, dá uma olhada.','Linha boa é a 24, aguenta o tranco.']); shopRender(); }
+$('#b-shop').addEventListener('click',()=>{ if(inShop()) { openShop(); return; } shopGPS=true; toast('LOJA DA ESQUINA','Siga a seta azul até a loja de pipas'); });
+$('#b-talk').addEventListener('click',()=>{ if(inShop()) openShop(); });
 $('#shop-close').addEventListener('click',()=>{ shopEl.hidden=true; });
 function mountKite(){ if(!running||player.kite||!player.inv.length) return; const it=player.inv.shift(); const k=new Kite(it.d,player,it.s); k.quality=player.line.q; k.maxL=player.line.max; k.hand.copy(playerHand()); k.L=5; k.launch(); player.kite=k; camOff=0; camMode='pipa'; toast('PIPA NO AR','Dê linha pra ela subir'); }
 
@@ -1415,6 +1483,8 @@ function step(dt){
     const mag=Math.min(1,Math.hypot(jx,jy)); fwdIn=jy;
     const kiteMode=!player.veh && camMode==='pipa' && player.kite && (player.kite.state==='flying'||player.kite.state==='crashed');
     hudEl.classList.toggle('pipa',!!kiteMode); hudEl.classList.toggle('veic',!!player.veh); hudEl.classList.toggle('bike',!!player.veh&&player.veh.type==='bike');
+    const here=inShop(); $('#b-talk').hidden=!here||!shopEl.hidden; if(here) shopGPS=false;
+    if(here && !player._wasInShop){ toast('LOJA DA ESQUINA','Fala com o vendedor pra comprar pipa e linha'); } player._wasInShop=here;
     const nv=player.veh?null:nearVehicle(); enterBtn.hidden=!(player.veh||nv);
     if(player.veh) setText(enterBtn.firstChild,'eb','SAIR '); else if(nv) setText(enterBtn.firstChild,'eb',nv.type==='bike'?'PEGAR A BIKE ':'ENTRAR NO CARRO '); setText(modeBtn,'mb',kiteMode?'ANDAR':'PIPA');
     const aim=(kiteMode&&mag>0.3)?Math.atan2(jx,jy):null;
@@ -1444,6 +1514,7 @@ function step(dt){
     animPerson(player.person,0,dt,false);
   }
   for(const f of flyers) f.update(dt);
+  if(shopVendor.person){ const vg=shopVendor.person.g; if(running && Math.hypot(player.pos.x-vg.position.x,player.pos.z-vg.position.z)<9){ const want=Math.atan2(player.pos.x-vg.position.x,player.pos.z-vg.position.z); vg.rotation.y+=angDiff(vg.rotation.y,want)*Math.min(1,dt*4); } animPerson(shopVendor.person,0,dt,false); }
   for(const k of kites.slice()) if(k.state==='free'||k.state==='landed'||k.state==='towed') k.update(dt,null);
   updateCombat(dt);
   updateCatches();
