@@ -1309,12 +1309,13 @@ function spawnRunners(k){
   const t=(k.pos.y)/1.9, lx=k.pos.x+wind.D.x*2.4*t, lz=k.pos.z+wind.D.z*2.4*t;
   const n=2+(rnd()<0.5?1:0);
   for(let i=0;i<n && runners.length<12;i++){ const a=R(0,TAU), d=R(35,70); const x=clamp(lx+Math.cos(a)*d,-190,190), z=clamp(lz+Math.sin(a)*d,-190,190);
-    const r={pos:new THREE.Vector3(x,world.topAt(x,z,0.3),z),vy:0,onGround:true,climb:null,r:0.3,target:k,speed:R(5.0,6.0),life:12,stuck:0,side:0,
+    const r={delay:R(2.5,4.5),pos:new THREE.Vector3(x,world.topAt(x,z,0.3),z),vy:0,onGround:true,climb:null,r:0.3,target:k,speed:R(5.0,6.0),life:12,stuck:0,side:0,
       person:makePerson(pick(SHIRTS),{cap:rnd()<0.5}),last:V()};
     r.person.g.position.copy(r.pos); runners.push(r); }
 }
 function updateRunners(dt){
   for(let i=runners.length-1;i>=0;i--){ const r=runners[i];
+    if(r.delay>0){ r.delay-=dt; r.person.g.position.copy(r.pos); animPerson(r.person,0,dt,false); continue; }
     if(!r.target || (r.target.state!=='free'&&r.target.state!=='landed')){ r.target=null;
       let best=null,bd=140; for(const k of freeKites()){ const d=Math.hypot(k.pos.x-r.pos.x,k.pos.z-r.pos.z); if(d<bd){bd=d;best=k;} } r.target=best; }
     let dx=0,dz=0,spd=0;
@@ -1336,7 +1337,7 @@ function trailPoint(k,t,out){ out.set(k.pos.x-wind.D.x*k.trail*0.4*t+Math.sin(no
   const g=world.topAt(out.x,out.z,0)+0.04; if(out.y<g) out.y=g; return out; }
 const TP=V();
 // alcance: braço (2,3 m), pulo soma sozinho pela altura; com a vara de bambu chega a 4,8 m
-function canCatch(a,k,isPlayer,bonus=0){ const reach=a.pos.y+(isPlayer&&player.vara?5.0:2.8)+bonus, tol=(isPlayer&&player.vara?2.6:2.0)+bonus;
+function canCatch(a,k,isPlayer,bonus=0){ const reach=a.pos.y+(isPlayer&&player.vara?5.0:2.9)+bonus, tol=(isPlayer&&player.vara?3.0:2.4)+bonus;
   if(Math.hypot(k.pos.x-a.pos.x,k.pos.z-a.pos.z)<tol+0.4 && reach>k.pos.y-0.4 && a.pos.y<k.pos.y+1.2) return true;
   if(k.state==='free'||k.state==='landed'){ if(k.trail<0.5) return false;
     for(let i=0;i<=14;i++){ trailPoint(k,i/14,TP); if(Math.hypot(TP.x-a.pos.x,TP.z-a.pos.z)<tol && TP.y<reach && TP.y>a.pos.y-0.4) return true; } }
@@ -1346,7 +1347,21 @@ function nearCatch(){ if(player.tow||!running) return null; let best=null,bd=1e9
 function grabNear(){ const k=nearCatch(); if(!k) return; player.vy=Math.max(player.vy,player.onGround?6.5:0); if(k.netId) netSend('caught',{k:k.netId,n:NET.name});
   k.state='towed'; k.towL=Math.max(2,k.pos.distanceTo(player.hand)); k.trail=0; player.tow=k; k.vel.set(0,0,0); for(const r of runners) if(r.target===k) r.target=null;
   toast('PEGOU A LINHA!','Segure RECOLHER pra puxar a pipa até a mão'); Sx.click(1); }
+function ptSegDist(p,a,b){ T6.subVectors(b,a); const l2=T6.lengthSq()||1; const t=clamp(T7.subVectors(p,a).dot(T6)/l2,0,1); return T7.copy(a).addScaledVector(T6,t).distanceTo(p); }
+const HP=V(), HE=V();
+function airHook(){ const pk=player.kite; if(!running||player.tow||!pk||pk.state!=='flying') return;
+  let near=1e9;
+  for(const k of freeKites()){ if(k.state!=='free') continue;
+    const d0=k.pos.distanceTo(pk.pos); near=Math.min(near,d0); if(d0>pk.L+40) continue;
+    trailPoint(k,1,HE); // ponta de baixo da rabeira da pipa cortada
+    for(let i=1;i<=16;i++){ const s2=i/16; pk.curve(s2,HP);
+      if(HP.distanceTo(k.pos)<2.6 || (k.trail>0.5 && ptSegDist(HP,k.pos,HE)<1.6)){
+        if(k.netId) netSend('caught',{k:k.netId,n:NET.name});
+        k.state='towed'; k.hookOn=pk; k.hookS=s2; k.trail=0; k.vel.set(0,0,0); player.tow=k; for(const r of runners) if(r.target===k) r.target=null;
+        toast('ENGANCHOU NA LINHA!','Segure RECOLHER pra trazer as duas pipas'); feed(`Você enganchou a pipa de <em>${k.ownerName}</em> no ar`); Sx.click(1); return; } } }
+  if(near<45 && !airHook.told){ airHook.told=true; toast('PIPA CORTADA PERTO!','Passe sua linha nela ou na rabeira pra aparar no ar'); } }
 function updateCatches(){
+  airHook();
   for(const k of freeKites()){
     if(running && !player.tow && canCatch(player,k,true)){ if(k.netId) netSend('caught',{k:k.netId,n:NET.name}); k.state='towed'; k.towL=Math.max(2,k.pos.distanceTo(player.hand)); k.trail=0; player.tow=k; k.vel.set(0,0,0);
       for(const r of runners) if(r.target===k) r.target=null;
@@ -1356,7 +1371,19 @@ function updateCatches(){
 }
 function updateTow(dt,reel){ const k=player.tow; if(!k) return; if(k.state!=='towed'){ player.tow=null; return; }
   k.hand.copy(player.hand);
-  if(reel){ k.towL=Math.max(0,k.towL-6.5*dt); if((now*3|0)!==(k._c|0)){ k._c=now*3; Sx.click(); } }
+  if(k.hookOn){ const pk=k.hookOn;
+    if(pk.state==='flying' && player.kite===pk){ const L=Math.max(pk.L,1);
+      // recolher puxa as duas; sem recolher ela escorrega devagar pela linha
+      const sp=reel?(5+L*0.05):1.2; k.hookS=Math.max(0,k.hookS-sp*dt/L); if(reel){ pk.L=Math.max(5,pk.L-4*dt); if((now*3|0)!==(k._c|0)){ k._c=now*3; Sx.click(); } }
+      pk.curve(k.hookS,k.pos); k.pos.y-=0.6; k.pos.x+=Math.sin(now*3+k.id)*0.3;
+      if(k.hookS*L<1.6){ k.towL=0; }
+      else { k.towL=k.pos.distanceTo(k.hand)+0.5; }
+      if(k.towL<1.4){ player.tow=null; player.inv.push({d:k.design,s:k.shape}); player.apar++; player.money+=25;
+        toast('APAROU NO AR!',`+1 ${SHAPES[k.shape].name} ${k.design.name} · +R$ 25`); feed(`Você aparou no ar a pipa de <em>${k.ownerName}</em>`); Sx.catch(); k.dispose(); }
+      return; }
+    // sua pipa caiu ou foi cortada: a outra fica presa só pela linha na sua mão
+    k.hookOn=null; k.towL=Math.max(2,k.pos.distanceTo(k.hand)); }
+  if(reel){ k.towL=Math.max(0,k.towL-(6.5+k.towL*0.1)*dt); if((now*3|0)!==(k._c|0)){ k._c=now*3; Sx.click(); } }
   // pipa sem sustentação: cai devagar e o vento empurra; a linha segura
   k.vel.x=lerp(k.vel.x,wind.D.x*2.2,dt); k.vel.z=lerp(k.vel.z,wind.D.z*2.2,dt); k.vel.y=-1.2;
   k.pos.addScaledVector(k.vel,dt); const g=world.topAt(k.pos.x,k.pos.z,0.3)+0.12; if(k.pos.y<g) k.pos.y=g;
@@ -1562,7 +1589,7 @@ function updateHUD(dt){
   else ringEl.hidden=true;
   // marcador da pipa caindo mais perto
   let best=null,bd=1e9; for(const f of freeKites()){ const d=f.pos.distanceTo(player.pos); if(d<bd){bd=d;best=f;} }
-  if(best && running){ let [x,y,z]=project(best.pos); markerEl.hidden=false; setText(markerTxt,'m',`APARA ${bd|0} m`);
+  if(best && running){ let [x,y,z]=project(best.pos); markerEl.hidden=false; setText(markerTxt,'m',(k&&k.state==='flying'&&best.state==='free'?'NO AR · ':'APARA ')+`${bd|0} m`);
     const W=innerWidth,H=innerHeight; let off=z>1||x<SAFE.l+40||x>W-SAFE.r-40||y<SAFE.t+30||y>H-SAFE.b-20||hitsHud(x-40,y-46,80,40);
     if(off){ const e=toSafeEdge(x,y,z); x=e[0]; y=e[1]; x=clamp(x,SAFE.l+40,W-SAFE.r-40); y=clamp(y,SAFE.t+20,H-SAFE.b-42);
       markerArrow.style.transform=`rotate(${e[2]-Math.PI/2}rad)`; }
