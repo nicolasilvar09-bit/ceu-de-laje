@@ -1209,15 +1209,16 @@ class Kite{
     // rabiola de verdade: passo fixo, arrasto do ar (ela segue o vento em vez de ser empurrada) e restrição de comprimento firme
     if(!this.tailInit || tl[0].p.distanceToSquared(anchor)>100){ for(let i=0;i<TAILN;i++){ tl[i].p.copy(anchor).addScaledVector(wind.D,i*TAILSEG*0.8); tl[i].p.y-=i*TAILSEG*0.6; tl[i].o.copy(tl[i].p); tl[i].v.set(0,0,0);} this.tailInit=true; this._anc=anchor.clone(); this._tAcc=0; }
     { const H=1/90; this._tAcc=Math.min((this._tAcc||0)+dt,0.1); const n=Math.floor(this._tAcc/H); this._tAcc-=n*H;
-      const landed=this.state==='landed'||this.state==='crashed', ws=landed?0:6.5*wind.str, drag=landed?5:2.4, g=landed?-9.8:-5.5;
+      const landed=this.state==='landed'||this.state==='crashed', ws=landed?0:6.5*wind.str, drag=landed?8:14, g=landed?-9.8:-38; /* fita de plástico: muito arrasto pra pouca massa */
       const a0=this._anc; for(let k=1;k<=n;k++){ const t=k/n; tl[0].p.lerpVectors(a0,anchor,t);
         for(let i=1;i<TAILN;i++){ const q=tl[i], fr=i/TAILN; q.o.copy(q.p);
           // ondulação lenta que corre pela rabiola, mais forte na ponta
-          const fl=landed?0:(Math.sin(now*2.6-i*0.38)*1.3+Math.sin(now*1.1-i*0.17)*0.6)*fr, up=landed?0:Math.sin(now*1.9-i*0.29)*0.5*fr;
+          const fl=landed?0:(Math.sin(now*2.6-i*0.38)*2.2+Math.sin(now*1.1-i*0.17)*1.0)*fr, up=landed?0:Math.sin(now*1.9-i*0.29)*0.5*fr;
           q.v.x+=((wind.D.x*ws+wind.P.x*fl)-q.v.x)*drag*H; q.v.z+=((wind.D.z*ws+wind.P.z*fl)-q.v.z)*drag*H; q.v.y+=(up-q.v.y)*drag*H+g*H;
           q.p.addScaledVector(q.v,H); }
-        for(let it=0;it<4;it++) for(let i=1;i<TAILN;i++){ const a=tl[i-1].p,b=tl[i].p; T4.subVectors(b,a); const l=T4.length()||1; b.copy(a).addScaledVector(T4,TAILSEG/l); }
-        for(let i=1;i<TAILN;i++){ const q=tl[i]; q.v.subVectors(q.p,q.o).multiplyScalar(1/H); } }
+        // segue-o-líder com amortecimento (DFTL): cada nó é puxado pro comprimento certo e a correção do próximo nó tira a energia extra
+        for(let i=1;i<TAILN;i++){ const a=tl[i-1].p,q=tl[i]; T4.subVectors(q.p,a); const l=T4.length()||1; T5.copy(q.p); q.p.copy(a).addScaledVector(T4,TAILSEG/l); q.s0=q.s0||V(); q.s0.subVectors(q.p,T5); }
+        for(let i=1;i<TAILN;i++){ const q=tl[i]; q.v.subVectors(q.p,q.o); if(i<TAILN-1) q.v.addScaledVector(tl[i+1].s0,-0.9); q.v.multiplyScalar(1/H); } }
       this._anc.copy(anchor); }
     if(this.tailCut) for(let i=6;i<TAILN;i++){ tl[i].p.copy(tl[5].p); tl[i].o.copy(tl[5].p); }
     if(this.state==='landed'||this.state==='crashed'){ for(let i=1;i<TAILN;i++){ const gg=world.topAt(tl[i].p.x,tl[i].p.z,0)+0.05; if(tl[i].p.y<gg) tl[i].p.y=gg; } }
