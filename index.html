@@ -1902,8 +1902,8 @@ const GradeShader={uniforms:{tDiffuse:{value:null},exposure:{value:1.05},contras
 const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,
   build(level){ this.level=level; if(this.composer){ this.composer.renderTarget1.dispose(); this.composer.renderTarget2.dispose(); this.composer=null; }
     const dpr=window.devicePixelRatio||1, w=innerWidth,h=innerHeight;
-    renderer.setPixelRatio(Math.min(dpr,level==='alto'?2:level==='medio'?(TOUCH?1.25:1.5):(TOUCH?1.15:1.5)));
-    const sm=level==='alto'?2048:1024; if(sun.shadow.mapSize.x!==sm){ sun.shadow.mapSize.set(sm,sm); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; } }
+    renderer.setPixelRatio(Math.min(dpr,level==='alto'?2:level==='medio'?(TOUCH?1.6:1.5):(TOUCH?1.35:1.5))); // mais nítido no celular
+    const sm=level==='alto'?2048:1024; sun.shadow.normalBias=sm>1024?0.05:0.09; sun.shadow.bias=-0.0004; /* sem listras de sombra no chão (shadow acne) */ if(sun.shadow.mapSize.x!==sm){ sun.shadow.mapSize.set(sm,sm); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; } }
     renderer.setSize(w,h,false);
     // a neblina: sem pós ela é misturada depois do tonemap (espaço da tela); com pós ela entra antes, então precisa ser bem mais escura pra dar o mesmo resultado
     if(!this.fogBase) this.fogBase=scene.fog.color.clone();
@@ -1916,7 +1916,7 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,
       // pipas, linhas, nuvens e pessoas ficam fora do cálculo de sombra de canto (evita "quadrado" escuro no céu)
       const orig=ss.renderOverride.bind(ss); ss.renderOverride=(...a)=>{ const hid=[]; scene.traverse(o=>{ if(o.visible&&(o.userData.noAO||o.isSprite||o.isSkinnedMesh||o.isLine)){ hid.push(o); o.visible=false; } }); orig(...a); hid.forEach(o=>o.visible=true); };
       comp.addPass(ss); this.ssao=ss; } else this.ssao=null;
-    this.bloom=new THREE.UnrealBloomPass(new THREE.Vector2(w/2,h/2),level==='alto'?0.26:0.2,0.35,0.97); // só o sol e reflexos fortes brilham comp.addPass(this.bloom);
+    this.bloom=new THREE.UnrealBloomPass(new THREE.Vector2(w/2,h/2),level==='alto'?0.26:0.2,0.35,0.97); /* só o sol e reflexos fortes brilham; no celular em médio fica de fora pra sobrar desempenho pra nitidez */ if(level==='alto'||!TOUCH) comp.addPass(this.bloom);
     comp.addPass(new THREE.ShaderPass(GradeShader));
     this.fxaa=new THREE.ShaderPass(THREE.FXAAShader); this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); comp.addPass(this.fxaa);
     comp.setSize(w,h); this.composer=comp; },
