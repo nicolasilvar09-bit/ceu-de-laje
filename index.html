@@ -1527,8 +1527,19 @@ function drawRadar(){
   for(const p of NET.peers.values()){ const [x,y,d]=toR(p.cur.x,p.cur.z); if(d<range){ rctx.fillStyle='#7fd0f0'; rctx.beginPath(); rctx.arc(x,y,5,0,TAU); rctx.fill(); rctx.strokeStyle='#fff'; rctx.lineWidth=2; rctx.stroke(); } }
   rctx.fillStyle='#fff'; rctx.beginPath(); rctx.moveTo(c,c-9); rctx.lineTo(c-6,c+6); rctx.lineTo(c+6,c+6); rctx.closePath(); rctx.fill();
 }
+const SAFE={t:60,r:20,b:60,l:14,rects:[],at:-1};
+function hudSafe(){ if(now-SAFE.at<0.5) return SAFE; SAFE.at=now; const W=innerWidth,H=innerHeight, R=[];
+  for(const id of ['radar','b-vs','pad','lineinfo','keys','b-mount','b-catch','b-enter','b-talk','joyzone']){ const e=document.getElementById(id); if(!e||e.hidden||!e.getClientRects().length||getComputedStyle(e).visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(r.width>0&&r.height>0) R.push(r); }
+  const st=document.querySelector('#hud .stats'), sb=document.getElementById('b-shop'); let top=12; for(const e of [st,sb&&sb.parentElement]) if(e){ const r=e.getBoundingClientRect(); if(r.height) { top=Math.max(top,r.bottom+10); R.push(r); } }
+  const rd=document.getElementById('radar').getBoundingClientRect(); const li=document.getElementById('lineinfo').getBoundingClientRect();
+  SAFE.t=top; SAFE.l=14; SAFE.r=rd.width?W-rd.left+8:20; SAFE.b=li.height?H-li.top+8:20; SAFE.rects=R; return SAFE; }
+function hitsHud(x,y,w,h){ for(const r of SAFE.rects) if(x<r.right+4&&x+w>r.left-4&&y<r.bottom+4&&y+h>r.top-4) return true; return false; }
+// leva um ponto (fora da tela ou atrás do HUD) pra borda da área livre, na direção dele
+function toSafeEdge(x,y,z){ const W=innerWidth,H=innerHeight; const L=SAFE.l,T=SAFE.t,Rr=W-SAFE.r,B=H-SAFE.b, cx=(L+Rr)/2, cy=(T+B)/2;
+  let dx=x-cx, dy=y-cy; if(z>1){dx=-dx;dy=-dy;} const s=Math.min((Rr-cx)/Math.abs(dx||1e-3),(B-cy)/Math.abs(dy||1e-3)); return [cx+dx*s,cy+dy*s,Math.atan2(dy,dx)]; }
 function project(p){ T1.copy(p).project(camera); return [(T1.x+1)/2*innerWidth,(1-T1.y)/2*innerHeight,T1.z]; }
 function updateHUD(dt){
+  hudSafe();
   setText(hud.money,'$','R$ '+player.money);
   setText(hud.relo,'r',String(player.relos)); setText(hud.apar,'a',String(player.apar)); setText(hud.pipas,'p',String(player.inv.length));
   const k=player.kite;
@@ -1552,25 +1563,25 @@ function updateHUD(dt){
   // marcador da pipa caindo mais perto
   let best=null,bd=1e9; for(const f of freeKites()){ const d=f.pos.distanceTo(player.pos); if(d<bd){bd=d;best=f;} }
   if(best && running){ let [x,y,z]=project(best.pos); markerEl.hidden=false; setText(markerTxt,'m',`APARA ${bd|0} m`);
-    const W=innerWidth,H=innerHeight, m=50; let off=z>1||x<m||x>W-m||y<m||y>H-m;
-    if(off){ let dx=x-W/2, dy=y-H/2; if(z>1){dx=-dx;dy=-dy;} const s=Math.min((W/2-m)/Math.abs(dx||1),(H/2-m)/Math.abs(dy||1)); x=W/2+dx*s; y=H/2+dy*s;
-      markerArrow.style.transform=`rotate(${Math.atan2(dy,dx)-Math.PI/2}rad)`; }
+    const W=innerWidth,H=innerHeight; let off=z>1||x<SAFE.l+40||x>W-SAFE.r-40||y<SAFE.t+30||y>H-SAFE.b-20||hitsHud(x-40,y-46,80,40);
+    if(off){ const e=toSafeEdge(x,y,z); x=e[0]; y=e[1]; x=clamp(x,SAFE.l+40,W-SAFE.r-40); y=clamp(y,SAFE.t+20,H-SAFE.b-42);
+      markerArrow.style.transform=`rotate(${e[2]-Math.PI/2}rad)`; }
     else { y-=26; markerArrow.style.transform=''; }
     markerEl.style.transform=`translate(${x-40}px,${y-20}px)`; markerEl.style.width='80px'; }
   else markerEl.hidden=true;
   // seta azul até a loja
   const sm=$('#shopmark'); if(shopGPS && running){ let [x,y,z]=project(SHOP.door); const W=innerWidth,H=innerHeight,m=50; sm.hidden=false;
-    const off=z>1||x<m||x>W-m||y<m||y>H-m; const si=sm.querySelector('i'); const d=Math.hypot(player.pos.x-SHOP.door.x,player.pos.z-SHOP.door.z)|0; sm.querySelector('span').textContent='LOJA '+d+' m';
-    if(off){ let dx=x-W/2, dy=y-H/2; if(z>1){dx=-dx;dy=-dy;} const s2=Math.min((W/2-m)/Math.abs(dx||1),(H/2-m)/Math.abs(dy||1)); x=W/2+dx*s2; y=H/2+dy*s2; si.style.transform=`rotate(${Math.atan2(dy,dx)-Math.PI/2}rad)`; }
+    const off=z>1||x<SAFE.l+40||x>W-SAFE.r-40||y<SAFE.t+30||y>H-SAFE.b-20||hitsHud(x-40,y-50,80,40); const si=sm.querySelector('i'); const d=Math.hypot(player.pos.x-SHOP.door.x,player.pos.z-SHOP.door.z)|0; sm.querySelector('span').textContent='LOJA '+d+' m';
+    if(off){ const e=toSafeEdge(x,y,z); x=clamp(e[0],SAFE.l+40,W-SAFE.r-40); y=clamp(e[1],SAFE.t+20,H-SAFE.b-42); si.style.transform=`rotate(${e[2]-Math.PI/2}rad)`; }
     else { y-=30; si.style.transform=''; } sm.style.transform=`translate(${x-40}px,${y-20}px)`; } else sm.hidden=true;
   // nomes nas pipas rivais
   let li=0; for(const f of flyers){ const fk=f.kite; if(!fk||fk.state!=='flying'||li>=labelPool.length) continue; const d=fk.pos.distanceTo(camera.position); if(d>170) continue;
-    const [x,y,z]=project(fk.pos); if(z>1||x<0||x>innerWidth||y<0||y>innerHeight) continue; const el=labelPool[li++]; el.hidden=false; el.style.transform=`translate(${x}px,${y-18}px) translate(-50%,-100%)`; if(el.textContent!==f.name) el.textContent=f.name; }
+    const [x,y,z]=project(fk.pos); if(z>1||x<0||x>innerWidth||y<0||y>innerHeight) continue; if(y-18<SAFE.t+14||hitsHud(x-40,y-38,80,22)) continue; const el=labelPool[li++]; el.hidden=false; el.style.transform=`translate(${x}px,${y-18}px) translate(-50%,-100%)`; if(el.textContent!==f.name) el.textContent=f.name; }
   for(;li<labelPool.length;li++) labelPool[li].hidden=true;
   let pi=0; for(const fk of kites){ if(fk.owner===player||fk.state!=='flying'||pi>=pinPool.length) continue; let [x,y,z]=project(fk.pos);
     const W=innerWidth,H=innerHeight,m=14; if(z<1&&x>m&&x<W-m&&y>m&&y<H-m) continue;
-    let dx=x-W/2, dy=y-H/2; if(z>1){dx=-dx;dy=-dy;} const s=Math.min((W/2-m)/Math.abs(dx||1),(H/2-m)/Math.abs(dy||1));
-    const el=pinPool[pi++]; el.hidden=false; el.style.background=hex(fk.design.tail); el.style.transform=`translate(${W/2+dx*s-6}px,${H/2+dy*s-6}px) rotate(45deg)`; }
+    const e=toSafeEdge(x,y,z); if(hitsHud(e[0]-8,e[1]-8,16,16)) continue;
+    const el=pinPool[pi++]; el.hidden=false; el.style.background=hex(fk.design.tail); el.style.transform=`translate(${e[0]-6}px,${e[1]-6}px) rotate(45deg)`; }
   for(;pi<pinPool.length;pi++) pinPool[pi].hidden=true;
   if(toastT>0){ toastT-=dt; if(toastT<=0) toastEl.classList.remove('on'); }
   netLabels(); drawRadar();
