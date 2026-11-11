@@ -19,6 +19,11 @@ Sobe a pipa da laje, cruza com a linha dos outros e puxa pra relar. Pipa cortada
 | Vara de bambu | B | botão VARA |
 | Montar pipa nova | R | botão MONTAR |
 
+## Online
+Sala única ("praça") pelo Supabase Realtime do projeto paintball (separado do NK), com a chave publicável e canal de broadcast, sem tabelas. Cada jogador manda no máximo 4 atualizações por segundo e só quando algo muda.
+O estado enviado inclui posição, veículo e pipa. Cada um é dono da própria pipa: o cruzo é calculado nos dois lados, mas só o dono corta a própria linha e avisa a sala. Quem apara uma pipa avisa a sala, e ela some pros outros.
+Só funciona no link do GitHub Pages; o link do Claude bloqueia conexões externas.
+
 ## Sistemas
 Cruzo com linhas que se encostam no ponto real, força de corte por linha (10, 24, Pro), desafio Vs, loja (formato, estampa, linha), dinheiro, aparar pela linha, bike com grau, carro, câmeras em 1ª e 3ª pessoa, morros, grafites e murais gerados pelo jogo.
 

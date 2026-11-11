@@ -156,6 +156,11 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 .tag{margin:0;font-size:15px;line-height:1.45;max-width:60ch}
 .lbl{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--linha)}
 #designs{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.netrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#nick{font-family:var(--body);font-size:15px;font-weight:600;padding:8px 10px;border-radius:10px;border:2px solid #d9d2c3;background:#fff;color:var(--ink);width:170px}
+#nick:focus-visible{outline:3px solid var(--pipa);outline-offset:1px}
+#net-status{font-size:12px;font-weight:600;color:var(--linha)}
+.klabel.peer{color:#7fd0f0;font-weight:800}
 #chars{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 #chars button{background:#fff;border:2px solid transparent;border-radius:10px;padding:4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:var(--body);font-size:11px;font-weight:600;color:var(--ink);min-width:0}
 #chars button[aria-pressed="true"]{border-color:var(--relo);background:#fff2d2}
@@ -206,6 +211,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <div class="chip"><span>Aparadas</span><b id="st-apar">0</b></div>
     <div class="chip"><span>Pipas</span><b id="st-pipas">0</b></div>
     <div class="chip"><span>Grana</span><b id="st-money">R$ 0</b></div>
+    <div class="chip" id="chip-online"><span>Online</span><b id="st-online">OFF</b></div>
     <button id="b-shop" class="shopbtn">LOJA</button>
     <button id="b-cam" class="shopbtn camb">CÂMERA<small>V</small></button>
     <button id="b-vara" class="shopbtn camb">VARA<small>B</small></button>
@@ -266,6 +272,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <p class="tag">Sobe a pipa da laje, cruza com a linha dos outros e puxa pra relar. Pipa cortada cai devagar pela quebrada: corre pelos telhados e apara antes da molecada.</p>
     <div class="lbl">Escolha sua pipa</div>
     <div id="designs"></div>
+    <div class="netrow"><label for="nick" class="lbl">Apelido</label><input id="nick" maxlength="14" autocomplete="off" placeholder="Seu apelido"><span id="net-status">Online: conectando…</span></div>
     <div class="lbl">Seu personagem</div>
     <div id="chars"></div>
     <div class="cols">
@@ -281,6 +288,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script>
 (() => {
 'use strict';
@@ -1065,7 +1073,7 @@ function canCatch(a,k,isPlayer){ const reach=a.pos.y+(isPlayer&&player.vara?4.8:
   return false; }
 function updateCatches(){
   for(const k of freeKites()){
-    if(running && !player.tow && canCatch(player,k,true)){ k.state='towed'; k.towL=Math.max(2,k.pos.distanceTo(player.hand)); k.trail=0; player.tow=k; k.vel.set(0,0,0);
+    if(running && !player.tow && canCatch(player,k,true)){ if(k.netId) netSend('caught',{k:k.netId,n:NET.name}); k.state='towed'; k.towL=Math.max(2,k.pos.distanceTo(player.hand)); k.trail=0; player.tow=k; k.vel.set(0,0,0);
       for(const r of runners) if(r.target===k) r.target=null;
       toast('PEGOU A LINHA!','Segure RECOLHER (L) pra puxar a pipa até a mão'); Sx.click(1); continue; }
     for(const r of runners){ if(canCatch(r,k,false)){ feed(`Um moleque aparou a pipa de <em>${k.ownerName}</em>`); k.dispose(); r.target=null; r.life=6; break; } }
@@ -1116,7 +1124,8 @@ function updateCombat(dt){
     else { const c=ps.c; c.s=cc.s; const tp=touchPoint(a,b,T6); c.pt.lerp(T6,0.35); a.via.copy(c.pt); b.via.copy(c.pt); a.viaS=lerp(a.viaS,tp.sa,0.35); b.viaS=lerp(b.viaS,tp.sb,0.35);
       const rab=26*a.quality*ATK[a.mode]*(b.mode==='release'?0.6:1)*R(0.6,1.4), rba=26*b.quality*ATK[b.mode]*(a.mode==='release'?0.6:1)*R(0.6,1.4);
       b.hp-=rab*dt; a.hp-=rba*dt; sparks(c.pt,2);
-      if(a.hp<=0||b.hp<=0){ const victim=a.hp<=b.hp?a:b, cutter=victim===a?b:a; endContact(c); ps.c=null; cutKite(victim,cutter,victim===a?tpS(a):tpS(b)); }
+      if(a.hp<=0||b.hp<=0){ const victim=a.hp<=b.hp?a:b, cutter=victim===a?b:a;
+        if(victim.remote){ victim.hp=5; } else { endContact(c); ps.c=null; cutKite(victim,cutter,victim===a?tpS(a):tpS(b)); } }
     }
     if(cc.sign!==0) ps.sign=cc.sign;
   }
@@ -1125,6 +1134,7 @@ function updateCombat(dt){
 const remnants=[];
 function cutKite(v,cutter,s){
   const owner=v.owner; const cut=v.curve(s,V());
+  if(owner===player && v.netId) netSend('cut',{k:v.netId,by:cutter.remote&&cutter.owner?cutter.owner.id:null,bn:cutter.ownerName,c:[cut.x,cut.y,cut.z].map(r2),s});
   const pts=[]; for(let i=0;i<=10;i++){ v.curve(s*i/10,T1); pts.push(T1.x,T1.y,T1.z); }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
   const ln=new THREE.Line(g,LINE_MAT.clone()); ln.frustumCulled=false; scene.add(ln); remnants.push({ln,t:0,vy:0});
@@ -1209,6 +1219,7 @@ function drawRadar(){
     if(free){ const p=7+Math.sin(now*8)*2.5; rctx.strokeStyle='#ffc21a'; rctx.lineWidth=3; rctx.beginPath(); rctx.arc(x,y,p,0,TAU); rctx.stroke(); }
     rctx.fillStyle=hex(k.design.tail); rctx.save(); rctx.translate(x,y); rctx.rotate(Math.PI/4); rctx.fillRect(-5,-5,10,10); if(k.owner===player){ rctx.strokeStyle='#fff'; rctx.lineWidth=2.5; rctx.strokeRect(-5,-5,10,10);} rctx.restore(); }
   { const [x,y,d]=toR(8,24); if(d<range){ rctx.fillStyle='#7fd0f0'; rctx.fillRect(x-7,y-7,14,14); rctx.fillStyle='#14202e'; rctx.font='bold 12px Rubik, sans-serif'; rctx.textAlign='center'; rctx.textBaseline='middle'; rctx.fillText('L',x,y+1); } }
+  for(const p of NET.peers.values()){ const [x,y,d]=toR(p.cur.x,p.cur.z); if(d<range){ rctx.fillStyle='#7fd0f0'; rctx.beginPath(); rctx.arc(x,y,5,0,TAU); rctx.fill(); rctx.strokeStyle='#fff'; rctx.lineWidth=2; rctx.stroke(); } }
   rctx.fillStyle='#fff'; rctx.beginPath(); rctx.moveTo(c,c-9); rctx.lineTo(c-6,c+6); rctx.lineTo(c+6,c+6); rctx.closePath(); rctx.fill();
 }
 function project(p){ T1.copy(p).project(camera); return [(T1.x+1)/2*innerWidth,(1-T1.y)/2*innerHeight,T1.z]; }
@@ -1255,7 +1266,7 @@ function updateHUD(dt){
     const el=pinPool[pi++]; el.hidden=false; el.style.background=hex(fk.design.tail); el.style.transform=`translate(${W/2+dx*s-6}px,${H/2+dy*s-6}px) rotate(45deg)`; }
   for(;pi<pinPool.length;pi++) pinPool[pi].hidden=true;
   if(toastT>0){ toastT-=dt; if(toastT<=0) toastEl.classList.remove('on'); }
-  drawRadar();
+  netLabels(); drawRadar();
 }
 
 /* ---------------- entrada ---------------- */
@@ -1523,6 +1534,7 @@ function step(dt){
     animPerson(player.person,0,dt,false);
   }
   for(const f of flyers) f.update(dt);
+  if(window.__netReady) netUpdate(dt);
   if(shopVendor.person){ const vg=shopVendor.person.g; if(running && Math.hypot(player.pos.x-vg.position.x,player.pos.z-vg.position.z)<9){ const want=Math.atan2(player.pos.x-vg.position.x,player.pos.z-vg.position.z); vg.rotation.y+=angDiff(vg.rotation.y,want)*Math.min(1,dt*4); } animPerson(shopVendor.person,0,dt,false); }
   for(const k of kites.slice()) if(k.state==='free'||k.state==='landed'||k.state==='towed') k.update(dt,null);
   updateCombat(dt);
@@ -1541,7 +1553,7 @@ function step(dt){
 }
 function frame(t){ requestAnimationFrame(frame); const dt=Math.min(0.05,(t-last)/1000); last=t; if(dt>0) step(dt); renderer.render(scene,camera); }
 requestAnimationFrame(frame);
-window.__ceu={player,kites,flyers,runners,step,camera,renderer,scene};
+window.__ceu={player,kites,flyers,runners,step,camera,renderer,scene,get net(){return NET;},cutKite:(v,c,t)=>cutKite(v,c,t)};
 // pré-aquece: deixa os rivais já com pipa no céu atrás do menu
 for(let i=0;i<600;i++) step(1/30);
 
@@ -1570,6 +1582,93 @@ function renderThumbs(){ const wrap=$('#chars'); let tr; try{ tr=new THREE.WebGL
     tr.render(sc,cam); c.getContext('2d').drawImage(tr.domElement,0,0); }
   tr.dispose(); try{ tr.forceContextLoss(); }catch(e){} }
 const thumbWait=setInterval(()=>{ if(avReady){ clearInterval(thumbWait); renderThumbs(); } },300);
+/* ---------------- online: Supabase Realtime (projeto paintball, separado do NK), sala única "praça" ----------------
+   Cada jogador manda o próprio estado 8x por segundo (posição, veículo e pipa). Cada um é dono da própria pipa:
+   o cruzo é calculado nos dois lados, mas só o dono corta a própria linha e avisa a sala ("cut"). */
+const SBCFG={url:'https://efsajtariawxlhwfgpzg.supabase.co',key:'sb_publishable_N-qypp-vJ0AmblmYjrXbYg_LQLldJxb'}; // projeto 'paintball' (chave publicável, feita pro navegador)
+const NET={on:false,ch:null,id:Math.random().toString(36).slice(2,10),name:'',peers:new Map(),sendT:0,seq:0,status:'conectando'};
+const r2=x=>Math.round(x*100)/100;
+try{ NET.name=localStorage.getItem('ceu_nick')||''; }catch(e){}
+if(!NET.name) NET.name='Pipeiro'+Math.floor(Math.random()*900+100);
+$('#nick').value=NET.name;
+$('#nick').addEventListener('input',e=>{ NET.name=(e.target.value||'').trim().slice(0,14)||NET.name; try{ localStorage.setItem('ceu_nick',NET.name); }catch(_){} });
+function netStatus(t){ NET.status=t; const el=$('#net-status'); if(el) el.textContent='Online: '+t; }
+function netStart(){
+  if(!window.supabase||!window.supabase.createClient){ netStatus('indisponível aqui (jogue pelo link do GitHub)'); return; }
+  try{
+    const sb=window.supabase.createClient(SBCFG.url,SBCFG.key,{realtime:{params:{eventsPerSecond:30}}});
+    const ch=sb.channel('ceudelaje-praca',{config:{broadcast:{self:false}}});
+    ch.on('broadcast',{event:'st'},({payload})=>netState(payload))
+      .on('broadcast',{event:'cut'},({payload})=>netCut(payload))
+      .on('broadcast',{event:'caught'},({payload})=>netCaught(payload))
+      .on('broadcast',{event:'bye'},({payload})=>netDrop(payload.id))
+      .subscribe(st=>{ if(st==='SUBSCRIBED'){ NET.on=true; netStatus('conectado na praça'); }
+        else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){ NET.on=false; netStatus('sem conexão (no link do Claude não funciona, use o do GitHub)'); }
+        else if(st==='CLOSED'){ NET.on=false; netStatus('desconectado'); } });
+    NET.ch=ch;
+    addEventListener('beforeunload',()=>{ try{ ch.send({type:'broadcast',event:'bye',payload:{id:NET.id}}); }catch(e){} });
+  }catch(e){ netStatus('erro ao conectar'); }
+}
+function netSend(ev,payload){ if(!NET.on||!NET.ch) return; payload.id=NET.id; try{ NET.ch.send({type:'broadcast',event:ev,payload}); }catch(e){} }
+function netTick(dt){
+  NET.sendT-=dt; if(NET.sendT>0||!NET.on||!running) return; NET.sendT=0.25; // 4x por segundo no máximo
+  const k=player.kite, v=player.veh;
+  if(k && !k.netId) k.netId=NET.id+'-'+(++NET.seq);
+  const pl={n:NET.name,av:player.person.av,p:[r2(player.pos.x),r2(player.pos.y),r2(player.pos.z)],f:r2(player.face),s:r2(player.speed||0),
+    v:v?[v.type,r2(v.yaw),r2(v.pitch)]:0,
+    k:(k&&(k.state==='flying'||k.state==='crashed'))?{i:k.netId,d:DESIGNS.indexOf(k.design),sh:k.shape,p:[r2(k.pos.x),r2(k.pos.y),r2(k.pos.z)],h:[r2(k.hand.x),r2(k.hand.y),r2(k.hand.z)],L:r2(k.L),sg:r2(k.sag),hd:r2(k.heading),m:k.mode,st:k.state,q:k.quality}:0};
+  // só manda quando algo mudou de verdade (parado não gasta mensagem); um sinal de vida a cada 3 s
+  const q=(x,m)=>Math.round(x/m), sig=[q(player.pos.x,0.15),q(player.pos.y,0.15),q(player.pos.z,0.15),q(player.face,0.08),pl.v?q(pl.v[1],0.05)+pl.v[0]+q(pl.v[2],0.1):0,
+    pl.k?[q(k.pos.x,0.6),q(k.pos.y,0.6),q(k.pos.z,0.6),q(k.L,1),k.mode,k.state].join(','):0,pl.av,pl.n].join('|');
+  const t=performance.now(); if(sig===NET.lastSig && t-NET.lastSend<3000) return; NET.lastSig=sig; NET.lastSend=t;
+  netSend('st',pl);
+}
+function netState(pl){
+  if(!pl||!pl.id||pl.id===NET.id) return;
+  let p=NET.peers.get(pl.id);
+  if(!p){ p={id:pl.id,name:pl.n||'Jogador',remote:true,kite:null,person:makePerson(0x7fd0f0,{av:pl.av||'Male_Adult_08'}),cur:new THREE.Vector3(...pl.p),tgt:new THREE.Vector3(...pl.p),face:pl.f||0,spd:0,last:0,veh:null,vehMdl:null,label:null};
+    p.person.g.position.copy(p.cur); NET.peers.set(pl.id,p); feed(`<em>${p.name}</em> entrou na praça`); }
+  p.name=pl.n||p.name; p.last=performance.now(); p.tgt.set(...pl.p); p.face=pl.f; p.spd=pl.s||0;
+  if(pl.av && p.person.av!==pl.av && avReady){ if(p.person.model){ p.person.g.remove(p.person.model); p.person.model=null; if(p.person.can){ scene.remove(p.person.can); scene.remove(p.person.canLine); p.person.can=null; } } p.person.av=pl.av; attachAvatar(p.person); }
+  // veículo
+  const vt=pl.v?pl.v[0]:null;
+  if(vt!==(p.veh&&p.veh.type)){ if(p.vehMdl){ scene.remove(p.vehMdl.root); p.vehMdl=null; } p.veh=null;
+    if(vt){ p.vehMdl=vt==='bike'?makeBikeModel(0x7fd0f0):makeCarModel(); scene.add(p.vehMdl.root); p.veh={type:vt,yaw:pl.v[1],pitch:pl.v[2]}; } }
+  if(p.veh){ p.veh.yaw=pl.v[1]; p.veh.pitch=pl.v[2]; }
+  // pipa
+  const kk=pl.k;
+  if(kk){ if(!p.kite || p.kite.netId!==kk.i){ if(p.kite && p.kite.owner===p) p.kite.dispose();
+      const d=DESIGNS[kk.d]||DESIGNS[0]; const k=new Kite(d,p,kk.sh||'pipa'); k.remote=true; k.netId=kk.i; k.pos.set(...kk.p); k.hand.set(...kk.h); p.kite=k; p.kt={pos:new THREE.Vector3(...kk.p),hand:new THREE.Vector3(...kk.h)}; }
+    const k=p.kite; p.kt.pos.set(...kk.p); p.kt.hand.set(...kk.h); k.L=kk.L; k.sag=kk.sg; k.heading=kk.hd; k.mode=kk.m||'idle'; k.quality=kk.q||1; if(k.state!=='free'&&k.state!=='landed'&&k.state!=='towed') k.state=kk.st; }
+  else if(p.kite && p.kite.owner===p){ p.kite.dispose(); p.kite=null; }
+}
+function netCut(pl){ const p=NET.peers.get(pl.id); if(!p||!p.kite||p.kite.netId!==pl.k||p.kite.owner!==p) return;
+  let cutter; if(pl.by===NET.id && player.kite) cutter=player.kite;
+  else { const cp=pl.by&&NET.peers.get(pl.by); cutter=(cp&&cp.kite)||{ownerName:pl.bn||'um moleque',owner:{name:pl.bn||'?'},remote:false}; }
+  cutKite(p.kite,cutter,pl.s||0.5); }
+function netCaught(pl){ for(const k of kites.slice()) if(k.netId===pl.k && (k.state==='free'||k.state==='landed'||k.state==='towed')){ if(player.tow===k) player.tow=null; feed(`<em>${pl.n||'Alguém'}</em> aparou uma pipa`); k.dispose(); } }
+function netDrop(id){ const p=NET.peers.get(id); if(!p) return; removePerson(p.person); if(p.vehMdl) scene.remove(p.vehMdl.root); if(p.kite&&p.kite.owner===p) p.kite.dispose(); if(p.label) p.label.remove(); NET.peers.delete(id); feed(`<em>${p.name}</em> saiu`); }
+function netUpdate(dt){
+  netTick(dt);
+  const nowMs=performance.now();
+  for(const p of NET.peers.values()){
+    if(nowMs-p.last>7000){ netDrop(p.id); continue; }
+    const a=1-Math.exp(-7*dt); p.cur.lerp(p.tgt,a);
+    const g=p.person.g; g.position.copy(p.cur); g.rotation.order='YXZ'; g.rotation.set(0,lerp(g.rotation.y,g.rotation.y+angDiff(g.rotation.y,p.face),a),0);
+    if(p.veh&&p.vehMdl){ const m=p.vehMdl; m.root.position.copy(p.cur); m.root.rotation.y=p.veh.yaw; m.pivot.rotation.x=-p.veh.pitch;
+      for(const w of m.wheels) w.rotation.x+=p.spd*0+dt*6*(p.cur.distanceTo(p.tgt)>0.05?1:0);
+      g.visible=true; if(p.veh.type==='bike'){ m.body.updateMatrixWorld(true); const sw=m.body.localToWorld(T6.copy(m.seat)); g.position.copy(sw); g.position.y-=(p.person.hip||0.95)-0.08; g.rotation.x=-p.veh.pitch; }
+      else { m.body.updateMatrixWorld(true); const sw=m.body.localToWorld(T6.copy(m.seat)); g.position.copy(sw); g.position.y-=(p.person.hip||0.95); } }
+    const k=p.kite&&p.kite.owner===p?p.kite:null;
+    if(k){ k.pos.lerp(p.kt.pos,a); k.hand.lerp(p.kt.hand,a); if(personHand(p.person,T5)) k.hand.lerp(T5,0.5); k.visual(dt); }
+    animPerson(p.person,p.veh?0:Math.min(p.spd,7),dt,!!k,k&&k.mode==='pull',k&&k.pos);
+  }
+  setText($('#st-online'),'on',NET.on?String(NET.peers.size+1):'OFF');
+}
+function netLabels(){ for(const p of NET.peers.values()){ if(!p.label){ p.label=document.createElement('div'); p.label.className='klabel peer'; labelsEl.appendChild(p.label); }
+  T5.copy(p.cur); T5.y+=2.3; const [x,y,z]=project(T5); const vis=z<1&&x>0&&x<innerWidth&&y>0&&y<innerHeight&&camera.position.distanceTo(p.cur)<120; p.label.hidden=!vis;
+  if(vis){ p.label.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`; if(p.label.textContent!==p.name) p.label.textContent=p.name; } } }
+netStart(); window.__netReady=true;
 $('#play').addEventListener('click',()=>{
   $('#menu').hidden=true; $('#hud').hidden=false; running=true; Sx.init();
   player.inv=[{d:player.design,s:'pipa'},{d:player.design,s:'pipa'}];
