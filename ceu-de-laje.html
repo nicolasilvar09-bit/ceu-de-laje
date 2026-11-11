@@ -358,15 +358,34 @@ const sky=new THREE.Mesh(new THREE.SphereGeometry(2000,32,16), new THREE.ShaderM
   fragmentShader:'uniform vec3 top,mid,bot; varying vec3 vP; void main(){ float h=vP.y; vec3 c=mix(mid,top,smoothstep(0.0,0.55,h)); c=mix(bot,c,smoothstep(-0.03,0.16,h)); gl_FragColor=vec4(c,1.0); }'}));
 scene.add(sky);
 // céu real (HDRI Poly Haven, convertido pra JPG) como fundo e reflexo/luz ambiente
-TL.load('assets/web/sky.jpg',t=>{ t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
+TL.load('assets/web/sky.jpg',t0=>{ let t=t0;
+  // acha o sol na foto do céu e gira a imagem pra ele ficar a oeste-sudoeste: assim ilumina a frente da favela e o campo,
+  // e a sombra do jogo continua batendo com o sol que aparece no céu
+  try{ const im=t0.image, cv=document.createElement('canvas'), W=256, H=128; cv.width=W; cv.height=H; const cg=cv.getContext('2d'); cg.drawImage(im,0,0,W,H);
+    const px=cg.getImageData(0,0,W,H/2).data; let best=-1,bi=0; for(let i=0;i<W*H/2;i++){ const l=px[i*4]*0.3+px[i*4+1]*0.6+px[i*4+2]*0.1; if(l>best){best=l;bi=i;} }
+    const u=(bi%W+0.5)/W, v=1-(Math.floor(bi/W)+0.5)/H, el=Math.max(0.5,(v-0.5)*Math.PI), aWant=2.55, uWant=aWant/TAU+0.5;
+    const IW=im.width, IH=im.height, big=document.createElement('canvas'); big.width=IW; big.height=IH; const bg=big.getContext('2d');
+    let sh=Math.round((uWant-u)*IW)%IW; if(sh<0) sh+=IW; bg.drawImage(im,sh,0); bg.drawImage(im,sh-IW,0);
+    t=new THREE.CanvasTexture(big);
+    SUN_DIR.set(Math.cos(aWant)*Math.cos(el),Math.sin(el),Math.sin(aWant)*Math.cos(el)).normalize(); SUN_OFF.copy(SUN_DIR).multiplyScalar(170); }catch(e){ t=t0; }
+  t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
   scene.background=t; const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromEquirectangular(t).texture; pm.dispose();
   sky.visible=false; for(const c of clouds) c.visible=false; loading.sky=true; },undefined,()=>{ loading.sky=true; });
-scene.add(new THREE.HemisphereLight(0xcfe6ff,0x8a7458,0.35));
+scene.add(new THREE.HemisphereLight(0xcfe6ff,0x9a8668,0.68)); // luz do céu: o lado na sombra não fica preto
 const sun=new THREE.DirectionalLight(0xfff3dc,1.7);
 sun.castShadow=true; sun.shadow.mapSize.set(TOUCH?1024:2048,TOUCH?1024:2048);
 const sc=sun.shadow.camera; sc.left=-70; sc.right=70; sc.top=70; sc.bottom=-70; sc.near=10; sc.far=400; sun.shadow.bias=-0.0006;
 scene.add(sun); scene.add(sun.target);
 const SUN_OFF=new THREE.Vector3(-90,140,60), SUN_DIR=SUN_OFF.clone().normalize();
+const CLOTH_T={value:0}; // relógio do vento das roupas no varal
+// urubus: asa em V que bate de vez em quando e plana em círculos largos
+const birds=[]; { const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0.35, -0.9,0.05,-0.1, 0,0,-0.25, 0,0,0.35, 0,0,-0.25, 0.9,0.05,-0.1],3)); g.computeVertexNormals();
+  const m=new THREE.MeshBasicMaterial({color:0x1a1a1a,side:THREE.DoubleSide});
+  for(let f=0;f<3;f++){ const c=f===0?new THREE.Vector3(215,0,-20):f===1?new THREE.Vector3(-60,0,90):new THREE.Vector3(80,0,-110);
+    for(let i=0;i<5;i++){ const b=new THREE.Mesh(g.clone(),m); b.scale.setScalar(R(0.9,1.2)); scene.add(b); birds.push({m:b,c,r:R(18,40),h:R(45,85),ph:R(0,TAU),sp:R(0.12,0.2)*(rnd()<.5?1:-1),flap:R(0,9)}); } } }
+function updateBirds(dt){ for(const b of birds){ b.ph+=b.sp*dt; const x=b.c.x+Math.cos(b.ph)*b.r, z=b.c.z+Math.sin(b.ph)*b.r, y=b.h+Math.sin(b.ph*3)*2;
+  const nx=b.c.x+Math.cos(b.ph+0.05*Math.sign(b.sp))*b.r, nz=b.c.z+Math.sin(b.ph+0.05*Math.sign(b.sp))*b.r; b.m.position.set(x,y,z); b.m.lookAt(nx,y,nz); b.m.rotateZ(-0.35*Math.sign(b.sp));
+  b.flap+=dt; const p=b.m.geometry.attributes.position, beat=(b.flap%6)<1.2?Math.sin(b.flap*9)*0.35:0.05; p.setY(1,beat); p.setY(5,beat); p.needsUpdate=true; } }
 
 /* ---------------- mundo ---------------- */
 const world={boxes:[],grid:new Map(),G:8,
@@ -399,7 +418,7 @@ class Merger{
     for(let i=0;i<P.count;i++){ const ny=N.getY(i), nx=N.getX(i); if(ny<-0.5) continue;
       const x=cx+P.getX(i)*w, y=cy+P.getY(i)*h, z=cz+P.getZ(i)*d;
       if(ny>0.5){ topM.p.push(x,y,z); topM.n.push(0,1,0); topM.c.push(tc.r,tc.g,tc.b); topM.uv.push(x/3,z/3); }
-      else { wallM.p.push(x,y,z); wallM.n.push(N.getX(i),0,N.getZ(i)); wallM.c.push(wc.r,wc.g,wc.b); wallM.uv.push((Math.abs(nx)>0.5?z:x)/uvs+0.37*cx, y/uvs); } } }
+      else { wallM.p.push(x,y,z); wallM.n.push(N.getX(i),0,N.getZ(i)); { const gm=P.getY(i)<0?0.7:1; wallM.c.push(wc.r*gm,wc.g*gm,wc.b*gm); } wallM.uv.push((Math.abs(nx)>0.5?z:x)/uvs+0.37*cx, y/uvs); } } }
   quad(px,py,pz,face,w,h,col){ // face: 0:+x 1:-x 2:+z 3:-z
     const ry=[Math.PI/2,-Math.PI/2,0,Math.PI][face]; Q0.setFromAxisAngle(UPV,ry); S0.set(w,h,1); P0.set(px,py,pz); M4.compose(P0,Q0,S0); this.add(QUAD,M4,col); }
   mesh(mat){ const g=new THREE.BufferGeometry();
@@ -619,6 +638,46 @@ function buildCity(){
     for(const [bx2,bz2] of [[-36,-12],[-36,12],[36,-12],[36,12]]){ propM.box(bx2,0.45,bz2,0.5,0.08,3,0x8a5a32); propM.box(bx2,0.22,bz2-1.2,0.4,0.44,0.1,0x5a5a5a); propM.box(bx2,0.22,bz2+1.2,0.4,0.44,0.1,0x5a5a5a); world.add({x0:bx2-0.25,x1:bx2+0.25,z0:bz2-1.5,z1:bz2+1.5,top:0.49}); }
     for(let i=0;i<10;i++){ const tx=(i<5?-1:1)*R(34,37.5), tz=R(-34,34); propM.box(tx,1.4,tz,0.35,2.8,0.35,0x6b4a2b);
       M4.makeScale(1,R(0.9,1.3),1).setPosition(tx,4.2,tz); propM.add(CROWN,M4,pick([0x4f8a3a,0x5f9a43,0x3f7a35])); world.add({x0:tx-0.3,x1:tx+0.3,z0:tz-0.3,z1:tz+0.3,top:2.6}); } }
+  // ===== vida nas lajes: varais, parabólicas, meia-parede de bloco; gatos de fiação na favela =====
+  { const allH=[...houses,...favHouses]; const clothes=[], dishes=[], wires=[];
+    const CL=[0xe8412f,0x1d4fa8,0xf4f4f0,0xffd23f,0x2fa84f,0xe39aa6,0x16181d,0x7db7e0,0xff7a1a,0xbfb6a8];
+    for(const h of allH){ const r=rnd(); const w=h.x1-h.x0, d=h.z1-h.z0;
+      if(r<0.16 && w>3.5 && d>3.5){ // varal: dois paus e a corda com roupa
+        const along=rnd()<0.5, L=Math.min(along?w:d,6)-1.2, cx=(h.x0+h.x1)/2+R(-0.6,0.6), cz=(h.z0+h.z1)/2+R(-0.6,0.6);
+        const ax=along?cx-L/2:cx, az=along?cz:cz-L/2, bx2=along?cx+L/2:cx, bz2=along?cz:cz+L/2, top=h.top+1.65;
+        propM.box(ax,h.top+0.83,az,0.06,1.66,0.06,0x8a6a3a); propM.box(bx2,h.top+0.83,bz2,0.06,1.66,0.06,0x8a6a3a);
+        for(let q=0;q<6;q++){ const t0=q/6,t1=(q+1)/6; wires.push(lerp(ax,bx2,t0),top-0.12*4*t0*(1-t0),lerp(az,bz2,t0), lerp(ax,bx2,t1),top-0.12*4*t1*(1-t1),lerp(az,bz2,t1)); }
+        const n=2+Math.floor(rnd()*5); for(let q=0;q<n;q++){ const t=(q+0.5)/n+R(-0.04,0.04); clothes.push([lerp(ax,bx2,t),top-0.12*4*t*(1-t),lerp(az,bz2,t),along?0:Math.PI/2,R(0.35,0.6),R(0.45,0.8),pick(CL)]); } }
+      else if(r<0.34){ dishes.push([R(h.x0+0.6,h.x1-0.6),h.top,R(h.z0+0.6,h.z1-0.6),R(-0.6,0.6)]); }
+      else if(r<0.46 && w>3 && d>3){ // laje em obra: meia parede de bloco cru em dois lados
+        const hh=R(0.9,1.7), wt=WT[0];
+        Merger.house((h.x0+h.x1)/2,h.top+hh/2,h.z0+0.08,w-0.1,hh,0.16,wallMs[wt.i],0xffffff,topM,0xbdb8ad,wt.uv); world.add({x0:h.x0,x1:h.x1,z0:h.z0,z1:h.z0+0.16,top:h.top+hh});
+        if(rnd()<0.6){ Merger.house(h.x0+0.08,h.top+hh/2,(h.z0+h.z1)/2,0.16,hh,d-0.1,wallMs[wt.i],0xffffff,topM,0xbdb8ad,wt.uv); world.add({x0:h.x0,x1:h.x0+0.16,z0:h.z0,z1:h.z1,top:h.top+hh}); } } }
+    // gatos: fios embaraçados entre casas vizinhas da favela e atravessando os becos
+    for(let i=0;i<favHouses.length;i++){ const a=favHouses[i]; const nb=favHouses.filter(b=>b!==a&&Math.hypot(b.cx-a.cx,b.cz-a.cz)<18);
+      for(let k=0;k<2&&nb.length;k++){ const b=nb[Math.floor(rnd()*nb.length)]; const y0=a.top-R(0.2,1.2), y1=b.top-R(0.2,1.2), sg=R(0.4,1.4);
+        const x0=clamp(b.cx,a.x0,a.x1), z0=clamp(b.cz,a.z0,a.z1), x1=clamp(a.cx,b.x0,b.x1), z1=clamp(a.cz,b.z0,b.z1);
+        for(let q=0;q<8;q++){ const t0=q/8,t1=(q+1)/8; wires.push(lerp(x0,x1,t0),lerp(y0,y1,t0)-sg*4*t0*(1-t0),lerp(z0,z1,t0), lerp(x0,x1,t1),lerp(y0,y1,t1)-sg*4*t1*(1-t1),lerp(z0,z1,t1)); } } }
+    // fios atravessando as ruas da cidade de casa em casa
+    for(const a of houses){ if(rnd()>0.18) continue; const b=pick(houses); const dd=Math.hypot(b.cx-a.cx,b.cz-a.cz); if(dd<8||dd>22) continue;
+      const y0=a.top-0.3, y1=b.top-0.3, sg=R(0.6,1.5), x0=clamp(b.cx,a.x0,a.x1), z0=clamp(b.cz,a.z0,a.z1), x1=clamp(a.cx,b.x0,b.x1), z1=clamp(a.cz,b.z0,b.z1);
+      for(let q=0;q<8;q++){ const t0=q/8,t1=(q+1)/8; wires.push(lerp(x0,x1,t0),lerp(y0,y1,t0)-sg*4*t0*(1-t0),lerp(z0,z1,t0), lerp(x0,x1,t1),lerp(y0,y1,t1)-sg*4*t1*(1-t1),lerp(z0,z1,t1)); } }
+    { const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(wires,3)); scene.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x151515}))); }
+    // roupas: uma malha instanciada que balança no vento (deslocamento no shader)
+    if(clothes.length){ const geo=new THREE.PlaneGeometry(1,1,1,3); geo.translate(0,-0.5,0);
+      const mat=new THREE.MeshStandardMaterial({side:THREE.DoubleSide,roughness:0.95});
+      mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=CLOTH_T; sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n  float sw=-position.y; transformed.z+=sin(uTime*2.3+instanceMatrix[3].x*0.9+instanceMatrix[3].z*0.6)*0.22*sw; transformed.x+=sin(uTime*3.1+instanceMatrix[3].z)*0.05*sw;'); };
+      const im=new THREE.InstancedMesh(geo,mat,clothes.length); const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), P2=new THREE.Vector3(), c=new THREE.Color();
+      clothes.forEach(([x,y,z,ry,w,hh,col],i)=>{ M.compose(P2.set(x,y,z),Q.setFromAxisAngle(UPV,ry),S.set(w,hh,1)); im.setMatrixAt(i,M); im.setColorAt(i,c.setHex(col).convertSRGBToLinear()); });
+      im.castShadow=true; im.frustumCulled=false; scene.add(im); }
+    // parabólicas
+    if(dishes.length){ const dish=new THREE.SphereGeometry(0.45,12,6,0,TAU,0,0.75); dish.rotateX(-Math.PI/2-0.6); dish.translate(0,0.75,0);
+      const arm=new THREE.CylinderGeometry(0.03,0.03,0.75,5); arm.translate(0,0.375,0);
+      const mDish=new THREE.MeshStandardMaterial({color:LC(0xd9d9d4),metalness:0.3,roughness:0.5,side:THREE.DoubleSide}), mArm=new THREE.MeshStandardMaterial({color:LC(0x777777),metalness:0.6,roughness:0.5});
+      const i1=new THREE.InstancedMesh(dish,mDish,dishes.length), i2=new THREE.InstancedMesh(arm,mArm,dishes.length); const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), S=new THREE.Vector3(1,1,1), P2=new THREE.Vector3();
+      dishes.forEach(([x,y,z,ry],i)=>{ M.compose(P2.set(x,y,z),Q.setFromAxisAngle(UPV,ry+2.4),S); i1.setMatrixAt(i,M); i2.setMatrixAt(i,M); });
+      for(const im of [i1,i2]){ im.castShadow=true; im.frustumCulled=false; scene.add(im); } } }
   // carros estacionados junto ao meio-fio
   for(let k=-4;k<=4;k++) for(const side of [-1,1]) for(let t=-156;t<156;t+=R(8,16)){
     const m40=((t%40)+40)%40; if(m40<7||m40>33) continue; if(rnd()>0.24) continue;
@@ -1713,6 +1772,7 @@ function step(dt){
   updateRunners(dt);
   updateFx(dt);
   // ambiente
+  CLOTH_T.value=now*wind.str; updateBirds(dt);
   for(const c of clouds){ c.position.addScaledVector(wind.D,2.5*dt); const dx=c.position.x, dz=c.position.z; if(Math.hypot(dx,dz)>950){ c.position.x=-dx*0.95; c.position.z=-dz*0.95; } }
   for(const s of farKites){ s.position.x=s.userData.b.x+Math.sin(now*0.4+s.userData.p)*4; s.position.y=s.userData.b.y+Math.sin(now*0.7+s.userData.p)*3; }
   if(running) updateCamera(dt,moving,mvx,mvz,fwdIn);
