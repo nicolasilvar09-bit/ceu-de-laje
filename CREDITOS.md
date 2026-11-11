@@ -20,6 +20,12 @@
   worn_plaster_wall, concrete_floor_worn_001, asphalt_floor (1k, cor e normal), em `assets/tex/`.
 - Céu: qwantani_noon_puresky (HDRI 2k), em `assets/sky_2k.hdr`, convertido para `assets/web/sky.jpg`.
 
+## Objetos do cenário: Poly Haven (CC0)
+- plastic_monobloc_chair_01, propane_tank, old_tyre, barrel_03, plastic_crate_02, trashbag, metal_trash_can,
+  plastic_jerrycan, planter_pot_clay, potted_plant_04, painted_wooden_stool, water_manhole_cover.
+- Originais 1k em `assets/props_src/` (fora do git). A versão web em `assets/web/props/` (glTF em JSON, texturas de 512 px)
+  é gerada pela `convert-props.html`.
+
 ## Como regerar a versão web
 1. `node serve.js` (dentro de PipaPrototipo).
 2. Abra http://localhost:5178/convert.html e espere aparecer "DONE".

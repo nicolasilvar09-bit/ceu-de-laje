@@ -3,7 +3,7 @@
 const http = require('http'), fs = require('fs'), path = require('path');
 const root = __dirname, port = 5178;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.glb': 'model/gltf-binary', '.hdr': 'application/octet-stream', '.fbx': 'application/octet-stream', '.json': 'application/json' };
+  '.glb': 'model/gltf-binary', '.hdr': 'application/octet-stream', '.fbx': 'application/octet-stream', '.json': 'application/json', '.mp4': 'video/mp4' };
 http.createServer((req, res) => {
   const [p0, q] = req.url.split('?');
   if (req.method === 'POST' && p0 === '/save') {

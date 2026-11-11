@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>converter objetos</title>
+<!-- Converte os objetos da Poly Haven (assets/props_src) pra glTF em JSON com tudo embutido e texturas de 512 px (assets/web/props). Rodar via serve.js. -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+<pre id="o"></pre>
+<script>
+const IDS=['plastic_monobloc_chair_01','propane_tank','old_tyre','barrel_03','plastic_crate_02','trashbag','metal_trash_can','plastic_jerrycan','planter_pot_clay','potted_plant_04','painted_wooden_stool','water_manhole_cover'];
+const log=s=>document.getElementById('o').textContent+=s+'\n';
+(async()=>{ const L=new THREE.GLTFLoader(); const out=[];
+  for(const id of IDS){ try{
+    const g=await L.loadAsync(`assets/props_src/${id}/${id}_1k.gltf`); const box=new THREE.Box3().setFromObject(g.scene); const sz=box.getSize(new THREE.Vector3());
+    const res=await new Promise(r=>new THREE.GLTFExporter().parse(g.scene,r,{binary:false,embedImages:true,maxTextureSize:512}));
+    const txt=JSON.stringify(res); const r=await fetch('/save?name='+id+'.gltf.json',{method:'POST',body:txt});
+    log(id+' '+Math.round(txt.length/1024)+'KB tamanho '+sz.toArray().map(v=>v.toFixed(2)).join('x')+' '+await r.text()); out.push(id);
+  }catch(e){ log('ERRO '+id+' '+e.message); } }
+  window.done=document.getElementById('o').textContent; })();
+</script>
