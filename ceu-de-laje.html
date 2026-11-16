@@ -857,11 +857,21 @@ function drawKite(g,s,d,shape='pipa'){ const SH=SHAPES[shape], SHAPE=SH.pts;
   g.beginPath(); g.moveTo(...PX(s,...SH.arc[0])); g.quadraticCurveTo(...PX(s,...SH.arc[1]),...PX(s,...SH.arc[2])); g.stroke();
 }
 const texCache=new Map();
-function kiteTex(d,shape='pipa'){ const key=d.name+'|'+shape; if(texCache.has(key))return texCache.get(key); const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d'); drawKite(g,256,d,shape);
+function kiteTex(d,shape='pipa'){ const key=d.name+'|'+shape; if(texCache.has(key))return texCache.get(key); const S=512, c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d'); drawKite(g,S,d,shape);
+  // emendas: onde uma cor de seda encontra outra fica a faixa de cola (papel sobreposto, mais escuro)
+  { const id=g.getImageData(0,0,S,S), px=id.data, o=new Uint8ClampedArray(px), st=4;
+    for(let y=st;y<S-st;y++) for(let x=st;x<S-st;x++){ const i=(y*S+x)*4; if(o[i+3]<10) continue;
+      let e=0; for(let q=0;q<2;q++){ const j=q?((y+st)*S+x)*4:(y*S+x+st)*4; if(o[j+3]<10) continue; if(Math.abs(o[i]-o[j])+Math.abs(o[i+1]-o[j+1])+Math.abs(o[i+2]-o[j+2])>120) e=1; }
+      if(e){ px[i]*=0.8; px[i+1]*=0.8; px[i+2]*=0.8; } }
+    g.putImageData(id,0,0); }
+  // bainha: a seda dobrada por cima da linha da borda
+  { const SH=SHAPES[shape].pts; g.save(); g.beginPath(); SH.forEach(([x,y],i)=>{const [X,Y]=PX(S,x,y); i?g.lineTo(X,Y):g.moveTo(X,Y);}); g.closePath(); g.clip();
+    g.lineJoin='round'; g.strokeStyle='rgba(0,0,0,0.13)'; g.lineWidth=S/26; g.stroke(); g.strokeStyle='rgba(255,255,255,0.10)'; g.lineWidth=S/60; g.stroke(); g.restore(); }
+  g.save(); g.scale(S/256,S/256);
   // fibras e vincos do papel de seda
   g.save(); g.globalCompositeOperation='multiply'; for(let i=0;i<900;i++){ const v=200+Math.random()*55|0; g.fillStyle=`rgba(${v},${v},${v},0.35)`; g.fillRect(Math.random()*256,Math.random()*256,Math.random()*9+1,1); }
-  g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1.2; for(let i=0;i<5;i++){ g.beginPath(); g.moveTo(Math.random()*256,Math.random()*256); g.lineTo(Math.random()*256,Math.random()*256); g.stroke(); } g.restore();
-  const t=new THREE.CanvasTexture(c); t.anisotropy=4; t.encoding=THREE.sRGBEncoding; texCache.set(key,t); return t; }
+  g.strokeStyle='rgba(0,0,0,0.10)'; g.lineWidth=1.2; for(let i=0;i<5;i++){ g.beginPath(); g.moveTo(Math.random()*256,Math.random()*256); g.lineTo(Math.random()*256,Math.random()*256); g.stroke(); } g.restore(); g.restore();
+  const t=new THREE.CanvasTexture(c); t.anisotropy=8; t.encoding=THREE.sRGBEncoding; texCache.set(key,t); return t; }
 
 _s=20261110; // semente fixa: PC e celular geram a mesma cidade (os morros variam por aparelho e não podem desalinhar)
 buildCity();
@@ -1079,7 +1089,8 @@ const mkKiteGeo=SHAPE=>{ const sh=new THREE.Shape(); SHAPE.forEach(([x,y],i)=>i?
 const kiteGeos={}; for(const k of SHAPE_KEYS) kiteGeos[k]=mkKiteGeo(SHAPES[k].pts);
 const LINE_MAT=new THREE.LineBasicMaterial({color:LC(0xd9d4c8),transparent:true,opacity:0.9});
 const SAIL_BOW=0.17, STICK_MAT=new THREE.MeshLambertMaterial({color:0x8a6a3a});
-const KSCALE=0.72, TAILN=36, TAILSEG=0.3, MAXL=300, LP=28;
+const KSCALE=0.72, TAILN=36, TAILSEG=0.3, MAXL=300, LP=28, NSTRIP=(TAILN-2)*2;
+const TAIL_STR=new THREE.LineBasicMaterial({color:LC(0xcfc6b0),transparent:true,opacity:0.85}), TP2=new THREE.Vector3(), SUND=new THREE.Vector3(), TUP=new THREE.Vector3(0,1,0);
 let KID=0;
 // fita da linha: fica de frente pra câmera e mantém ~1,6 px de espessura em qualquer distância
 const RIBBON_MAT=new THREE.MeshBasicMaterial({color:LC(0xe9e5da),side:THREE.DoubleSide,transparent:true,opacity:0.92,depthWrite:false});
@@ -1118,13 +1129,12 @@ class Kite{
     this.line=new THREE.Line(lg,LINE_MAT); this.line.frustumCulled=false; this.line.visible=false; scene.add(this.line);
     this.ribbon=makeRibbon(LP); this.ribbon.userData.noAO=true; scene.add(this.ribbon);
     this.tail=[]; for(let i=0;i<TAILN;i++) this.tail.push({p:V(),o:V(),v:V(),s:V(0,0,1)}); this.tailInit=false;
-    const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(TAILN*2*3),3));
-    const idx=[]; for(let i=0;i<TAILN-1;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); } tg.setIndex(idx);
-    // rabiola listrada (tiras de sacolinha alternando cor e branco)
-    const tc=new Float32Array(TAILN*2*3), ca=LC(design.tail), cw=LC(design.tail===0xffffff?0x222222:0xf4f1ea);
-    for(let i=0;i<TAILN;i++){ const c=(i>>1)%2?cw:ca; for(let s=0;s<2;s++){ tc[(i*2+s)*3]=c.r; tc[(i*2+s)*3+1]=c.g; tc[(i*2+s)*3+2]=c.b; } }
-    tg.setAttribute('color',new THREE.BufferAttribute(tc,3));
+    // rabiola: tirinhas de sacolinha amarradas no barbante, alternando cor e branco a cada 2 laços
+    this.stripA=Float32Array.from({length:NSTRIP},()=>(Math.random()-0.5)*1.2); this.stripL=Float32Array.from({length:NSTRIP},()=>0.8+Math.random()*0.4);
+    { const ca=LC(design.tail), cw=LC(design.tail===0xffffff?0x222222:0xf4f1ea); this.stripC=Array.from({length:NSTRIP},(_,k)=>((k>>2)&1)?cw:ca); }
+    const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NSTRIP*6*3),3)); tg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(NSTRIP*6*3),3));
     this.tailMesh=new THREE.Mesh(tg,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide})); this.tailMesh.frustumCulled=false; this.tailMesh.userData.noAO=true; scene.add(this.tailMesh);
+    const sg2=new THREE.BufferGeometry(); sg2.setAttribute('position',new THREE.BufferAttribute(new Float32Array(TAILN*3),3)); this.tailLine=new THREE.Line(sg2,TAIL_STR); this.tailLine.frustumCulled=false; this.tailLine.userData.noAO=true; scene.add(this.tailLine);
     kites.push(this);
   }
   windowPos(out){ const cv=Math.cos(this.v); out.copy(wind.D).multiplyScalar(cv*Math.cos(this.u)).addScaledVector(wind.P,cv*Math.sin(this.u)); out.y=Math.sin(this.v);
@@ -1241,12 +1251,27 @@ class Kite{
       this._anc.copy(anchor); }
     if(this.tailCut) for(let i=6;i<TAILN;i++){ tl[i].p.copy(tl[5].p); tl[i].o.copy(tl[5].p); }
     if(this.state==='landed'||this.state==='crashed'){ for(let i=1;i<TAILN;i++){ const gg=world.topAt(tl[i].p.x,tl[i].p.z,0)+0.05; if(tl[i].p.y<gg) tl[i].p.y=gg; } }
-    const tp=this.tailMesh.geometry.attributes.position.array; T5.subVectors(camera.position,this.pos).normalize();
-    for(let i=0;i<TAILN;i++){ const a=tl[Math.max(0,i-1)].p,b=tl[Math.min(TAILN-1,i+1)].p; T4.subVectors(b,a); T6.crossVectors(T4,T5); const sv=tl[i].s; if(T6.lengthSq()>1e-6){ T6.normalize(); if(T6.dot(sv)<0) T6.negate(); sv.lerp(T6,0.25).normalize(); } T6.copy(sv).multiplyScalar((i%3===1?0.085:0.018)*(1-i/TAILN*0.3)*Math.min(2,this.group.scale.x/KSCALE));
-      const p=tl[i].p; tp[i*6]=p.x+T6.x; tp[i*6+1]=p.y+T6.y; tp[i*6+2]=p.z+T6.z; tp[i*6+3]=p.x-T6.x; tp[i*6+4]=p.y-T6.y; tp[i*6+5]=p.z-T6.z; }
+    { const tp=this.tailMesh.geometry.attributes.position.array, tc=this.tailMesh.geometry.attributes.color.array, sc=Math.min(2,this.group.scale.x/KSCALE), hl=0.085*sc, hw=0.026*sc, bk=0.045*sc, cut=this.tailCut;
+      SUND.copy(sun.position).sub(sun.target.position).normalize();
+      // lado de cada nó, estável (não depende da câmera), pra as tirinhas não virarem de repente
+      for(let i=0;i<TAILN;i++){ const a=tl[Math.max(0,i-1)].p,b=tl[Math.min(TAILN-1,i+1)].p; T4.subVectors(b,a).normalize(); T6.crossVectors(T4,TUP); if(T6.lengthSq()<1e-4) T6.copy(wind.P); T6.normalize();
+        const sv=tl[i].s; if(T6.dot(sv)<0) T6.negate(); sv.lerp(T6,0.3); sv.addScaledVector(T4,-sv.dot(T4)); if(sv.lengthSq()<1e-6) sv.copy(T6); sv.normalize(); }
+      const lp=this.tailLine.geometry.attributes.position.array; for(let i=0;i<TAILN;i++){ const p=tl[i].p; lp[i*3]=p.x; lp[i*3+1]=p.y; lp[i*3+2]=p.z; } this.tailLine.geometry.attributes.position.needsUpdate=true;
+      let v=0; for(let k=0;k<NSTRIP;k++){ const i=1+(k>>1), a=tl[i].p, b=tl[Math.min(TAILN-1,i+1)].p;
+        TP2.lerpVectors(a,b,(k&1)*0.5); T4.subVectors(b,a); T4.multiplyScalar(1/(T4.length()||1));
+        const sv=tl[i].s, ang=this.stripA[k]+Math.sin(now*8.5+k*1.7)*0.55, ca=Math.cos(ang), sa=Math.sin(ang);
+        T6.crossVectors(T4,sv); T5.copy(sv).multiplyScalar(ca).addScaledVector(T6,sa); // tirinha girada em volta do barbante
+        const z=(cut&&i>=5)?0:1, L=hl*z*this.stripL[k], W=hw*z, B=bk*z;
+        // laço: amarrado no meio, as duas pontas soltas pra trás
+        for(let sg=-1;sg<=1;sg+=2){ tp[v++]=TP2.x; tp[v++]=TP2.y; tp[v++]=TP2.z;
+          tp[v++]=TP2.x+T5.x*L*sg+T4.x*(B-W); tp[v++]=TP2.y+T5.y*L*sg+T4.y*(B-W); tp[v++]=TP2.z+T5.z*L*sg+T4.z*(B-W);
+          tp[v++]=TP2.x+T5.x*L*sg+T4.x*(B+W); tp[v++]=TP2.y+T5.y*L*sg+T4.y*(B+W); tp[v++]=TP2.z+T5.z*L*sg+T4.z*(B+W); }
+        T6.crossVectors(T5,T4); const sh=0.6+0.4*Math.abs(T6.normalize().dot(SUND)), c=this.stripC[k];
+        for(let q=0;q<6;q++){ const o=(k*6+q)*3; tc[o]=c.r*sh; tc[o+1]=c.g*sh; tc[o+2]=c.b*sh; } }
+      this.tailMesh.geometry.attributes.color.needsUpdate=true; }
     this.tailMesh.geometry.attributes.position.needsUpdate=true;
   }
-  dispose(){ this.state='gone'; scene.remove(this.group); scene.remove(this.line); scene.remove(this.tailMesh); scene.remove(this.ribbon); this.ribbon.geometry.dispose(); this.sail.geometry.dispose();
+  dispose(){ this.state='gone'; scene.remove(this.group); scene.remove(this.line); scene.remove(this.tailMesh); scene.remove(this.tailLine); this.tailLine.geometry.dispose(); scene.remove(this.ribbon); this.ribbon.geometry.dispose(); this.sail.geometry.dispose();
     this.line.geometry.dispose(); this.tailMesh.geometry.dispose(); this.tailMesh.material.dispose(); this.sail.material.dispose();
     const i=kites.indexOf(this); if(i>=0) kites.splice(i,1); }
 }
