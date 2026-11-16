@@ -41,6 +41,8 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 #lineinfo{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
   display:flex;flex-direction:column;align-items:center;gap:6px}
 #linehp{display:flex;align-items:center;gap:8px;background:var(--glass);color:#fff;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.08em}
+#hookhp{display:flex;align-items:center;gap:8px;background:var(--glass);color:#fff;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.08em}
+#hookhp .bar{width:120px}#hookhp .bar i{background:#5fd07a;transition:width .1s,background .2s}#hookhp .bar i.low{background:var(--relo)}
 #linehp .bar{width:120px}#linehp .bar i{background:#5fd07a;transition:width .15s,background .3s}#linehp .bar i.low{background:var(--relo)}
 #combo-badge{font-family:var(--display);font-weight:400;font-size:12px;color:var(--pipa);letter-spacing:0}
 #li-len{background:var(--glass);color:#fff;padding:5px 12px;border-radius:999px;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -259,6 +261,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
       <span>Sua linha</span><div class="bar"><i id="hp-me"></i></div>
       <span id="foe-name">Rival</span><div class="bar foe"><i id="hp-foe"></i></div>
     </div>
+    <div id="hookhp" hidden><span>APARO</span><div class="bar"><i id="hp-hook"></i></div><b id="hook-tip">PUXE AOS POUCOS</b></div>
     <div id="linehp" hidden><span>LINHA</span><div class="bar"><i id="hp-line"></i></div><b id="combo-badge"></b></div>
     <div id="li-len">Linha 0 m · Altura 0 m</div>
   </div>
@@ -1242,7 +1245,7 @@ class Kite{
         P.setZ(i,-SAIL_BOW*x*x+Math.sin(this.flapT+y*3.2+x*2)*amp*edge); }
       P.needsUpdate=true; }
     if(this.state==='flying'){ g.lookAt(this.hand); g.rotateZ(-this.heading); }
-    else if(this.state==='towed'){ g.lookAt(this.hand); g.rotateZ(Math.sin(now*4+this.id)*0.6); }
+    else if(this.state==='towed'){ g.lookAt(this.hand); if(this.hookOn){ this.spin=(this.spin||0)+dt*(3+9*(this.hookT||0)); g.rotateZ(this.spin); g.rotateX(Math.sin(now*2.3+this.id)*0.35); } else g.rotateZ(Math.sin(now*4+this.id)*0.6); }
     else if(this.state==='free'){ T1.copy(this.pos).addScaledVector(wind.D,-10); T1.y+=4; g.lookAt(T1); g.rotateZ(Math.sin(now*3.1+this.id)*1.3); }
     else { g.rotation.set(-Math.PI/2,0,this.heading); }
     g.updateMatrixWorld(); this.knot.set(0,0.05,0.75); this.sail.localToWorld(this.knot);
@@ -1257,6 +1260,7 @@ class Kite{
       for(let i=0;i<LP;i++){ const t=sv==null?i/(LP-1):(i<=n1?sv*i/n1:sv+(1-sv)*(i-n1)/(LP-1-n1)); this.curve(t,T2); arr[i*3]=T2.x; arr[i*3+1]=T2.y; arr[i*3+2]=T2.z; }
       if(this.state==='flying'){ const e=(LP-1)*3; arr[e]=this.knot.x; arr[e+1]=this.knot.y; arr[e+2]=this.knot.z; }
       this.line.visible=true;
+    } else if(this.state==='towed'&&this.hookOn){ this.line.visible=false; /* enganchada na sua linha: não tem linha própria */
     } else if(this.state==='towed'){
       for(let i=0;i<LP;i++){ const t=i/(LP-1); arr[i*3]=lerp(this.hand.x,this.pos.x,t); arr[i*3+1]=lerp(this.hand.y,this.pos.y,t)-this.towL*0.06*4*t*(1-t); arr[i*3+2]=lerp(this.hand.z,this.pos.z,t); }
       this.line.visible=true;
@@ -1482,14 +1486,14 @@ function ptSegDist(p,a,b){ T6.subVectors(b,a); const l2=T6.lengthSq()||1; const 
 const HP=V(), HE=V();
 function airHook(){ const pk=player.kite; if(!running||player.tow||!pk||pk.state!=='flying') return;
   let near=1e9;
-  for(const k of freeKites()){ if(k.state!=='free') continue;
+  for(const k of freeKites()){ if(k.state!=='free'||k.tailCut) continue;
     const d0=k.pos.distanceTo(pk.pos); near=Math.min(near,d0); if(d0>pk.L+40) continue;
     trailPoint(k,1,HE); // ponta de baixo da rabeira da pipa cortada
     for(let i=1;i<=16;i++){ const s2=i/16; pk.curve(s2,HP);
       if(HP.distanceTo(k.pos)<2.6 || (k.trail>0.5 && ptSegDist(HP,k.pos,HE)<1.6)){
         if(k.netId) netSend('caught',{k:k.netId,n:NET.name});
-        k.state='towed'; k.hookOn=pk; k.hookS=s2; k.trail=0; k.vel.set(0,0,0); player.tow=k; for(const r of runners) if(r.target===k) r.target=null;
-        toast('ENGANCHOU NA LINHA!','Segure RECOLHER pra trazer as duas pipas'); feed(`Você enganchou a pipa de <em>${k.ownerName}</em> no ar`); Sx.click(1); return; } } }
+        k.state='towed'; k.hookOn=pk; k.hookS=s2; k.hookT=0; k.trail=0; k.vel.set(0,0,0); player.tow=k; for(const r of runners) if(r.target===k) r.target=null;
+        toast('ENGANCHOU NA LINHA!','Recolha aos poucos: se puxar direto a linha corta a rabiola'); feed(`Você enganchou a pipa de <em>${k.ownerName}</em> no ar`); Sx.click(1); return; } } }
   if(near<45 && !airHook.told){ airHook.told=true; toast('PIPA CORTADA PERTO!','Passe sua linha nela ou na rabeira pra aparar no ar'); } }
 function updateCatches(){
   airHook();
@@ -1500,11 +1504,18 @@ function updateCatches(){
     for(const r of runners){ if(canCatch(r,k,false)){ feed(`Um moleque aparou a pipa de <em>${k.ownerName}</em>`); k.dispose(); r.target=null; r.life=6; break; } }
   }
 }
+function tailDrop(v){ v.tailCut=true; if(!v.tail||!v.tailInit) return; const pts=[]; for(let i=5;i<TAILN;i++){ const p=v.tail[i].p; pts.push(p.x,p.y,p.z); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3)); const ln=new THREE.Line(g,new THREE.LineBasicMaterial({color:LC(v.design.tail),transparent:true})); ln.frustumCulled=false; scene.add(ln); remnants.push({ln,t:0,vy:0}); sparks(v.tail[5].p,10); }
+// puxou rápido demais: a linha corta a rabiola e a pipa aparada escapa (sem rabiola não dá mais pra enganchar no ar)
+function hookSnap(k){ tailDrop(k); k.hookOn=null; k.hookT=0; k.state='free'; k.trail=0; k.vel.set(wind.D.x*3,-1.5,wind.D.z*3); player.tow=null;
+  toast('CORTOU A RABIOLA!','Puxou rápido demais e a pipa escapou · recolha aos poucos','red'); feed('A pipa aparada escapou: a linha cortou a rabiola'); Sx.cut(); if(navigator.vibrate) try{ navigator.vibrate(120); }catch(e){} }
 function updateTow(dt,reel){ const k=player.tow; if(!k) return; if(k.state!=='towed'){ player.tow=null; return; }
   k.hand.copy(player.hand);
   if(k.hookOn){ const pk=k.hookOn;
     if(pk.state==='flying' && player.kite===pk){ const L=Math.max(pk.L,1);
       // recolher puxa as duas; sem recolher ela escorrega devagar pela linha
+      const yank=pk.mode==='pull'; k.hookT=clamp((k.hookT||0)+(yank?dt/0.55:reel?dt/1.5:-dt/0.6),0,1);
+      if(k.hookT>=1){ hookSnap(k); return; }
       const sp=reel?(5+L*0.05):1.2; k.hookS=Math.max(0,k.hookS-sp*dt/L); if(reel){ pk.L=Math.max(5,pk.L-4*dt); if((now*3|0)!==(k._c|0)){ k._c=now*3; Sx.click(); } }
       pk.curve(k.hookS,k.pos); k.pos.y-=0.6; k.pos.x+=Math.sin(now*3+k.id)*0.3;
       if(k.hookS*L<1.6){ k.towL=0; }
@@ -1753,6 +1764,7 @@ function updateHUD(dt){
   else if(k){ const g=world.topAt(k.pos.x,k.pos.z); if(k.state==='flying'){ stat('fly',dt); stat('alt',Math.max(0,k.pos.y-g)|0); } setText(hud.len,'l',`${player.line.name} ${Math.round(player.line.q*100)}% · ${k.L|0}/${k.maxL} m · Altura ${Math.max(0,k.pos.y-g)|0} m${k.state==='crashed'?' · caída':''}${vs?' · VS '+vs.f.name:''}`); }
   else setText(hud.len,'l',player.inv.length?'Sem pipa no céu · monte uma nova':'Sem pipa · apare uma que estiver caindo');
   hud.mount.hidden=!(running && !k && player.inv.length>0);
+  { const hh=$('#hookhp'), tw=player.tow, on=!!(tw&&tw.hookOn); hh.hidden=!on; if(on){ const t=clamp(tw.hookT||0,0,1), hi=$('#hp-hook'); hi.style.width=(t*100)+'%'; hi.classList.toggle('low',t>0.6); setText($('#hook-tip'),'ht',t>0.6?'SOLTA! VAI CORTAR':'PUXE AOS POUCOS'); } }
   { const lh=$('#linehp'), show=!!(k&&k.state==='flying'); lh.hidden=!show; if(show){ const pct=Math.max(0,k.hp/k.hpMax*100); const hi=$('#hp-line'); hi.style.width=pct+'%'; hi.classList.toggle('low',pct<30);
       const emb=player.embalado>now; setText($('#combo-badge'),'cb',(player.combo>=2?'x'+player.combo+' ':'')+(emb?'EMBALADO '+Math.ceil(player.embalado-now)+'s':(k.tailCut?'SEM RABIOLA':''))); } }
   const c=k&&k.contact; hud.fight.hidden=!c;
