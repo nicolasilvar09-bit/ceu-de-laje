@@ -392,7 +392,7 @@ function boostAniso(root){ root.traverse(o=>{ if(!o.material) return; for(const 
 function texSet(id){ const dir=TOUCH?'assets/tex/512/':'assets/tex/'; /* celular baixa a versão de 512 px */ const d=TL.load(dir+id+'_diff.jpg'), n=TL.load(dir+id+'_nor.jpg'); d.encoding=THREE.sRGBEncoding;
   for(const t of [d,n]){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=ANI; } return {d,n}; }
 const loading={sky:false,people:false};
-const camera=new THREE.PerspectiveCamera(62,1,0.1,2600);
+const camera=new THREE.PerspectiveCamera(62,1,0.3,2600); /* near maior = mais precisão de profundidade lá longe */
 function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); if(window.FX) FX.resize(); }
 addEventListener('resize',resize); resize();
 
@@ -2129,6 +2129,7 @@ let HF_OK=null; function hfOK(){ if(HF_OK!==null) return HF_OK; HF_OK=false;
   try{ const gl=renderer.getContext(); if(renderer.capabilities.isWebGL2){ gl.getExtension('EXT_color_buffer_float'); gl.getExtension('EXT_color_buffer_half_float'); } else if(!gl.getExtension('OES_texture_half_float')) return HF_OK;
     const t=new THREE.WebGLRenderTarget(4,4,{type:THREE.HalfFloatType}); const prev=renderer.getRenderTarget(); renderer.setRenderTarget(t); renderer.clear();
     HF_OK=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE && gl.getError()===gl.NO_ERROR; renderer.setRenderTarget(prev); t.dispose(); }catch(e){ HF_OK=false; } return HF_OK; }
+function depthTex(w,h){ if(!(renderer.capabilities.isWebGL2||renderer.extensions.get('WEBGL_depth_texture'))) return null; const d=new THREE.DepthTexture(Math.max(1,Math.floor(w)),Math.max(1,Math.floor(h))); d.type=THREE.UnsignedIntType; return d; }
 const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
   setRes(pr){ const w=innerWidth,h=innerHeight; this.pr=pr; renderer.setPixelRatio(pr); renderer.setSize(w,h,false);
     if(this.composer){ this.composer.setPixelRatio(pr); this.composer.setSize(w,h); if(this.fxaa) this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); if(this.sharp) this.sharp.uniforms.res.value.set(1/(w*pr),1/(h*pr)); } },
@@ -2146,10 +2147,12 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
     const pr=renderer.getPixelRatio(), hdr=canHF?THREE.HalfFloatType:THREE.UnsignedByteType, /* em 8 bits linear o céu vira faixas (parecia erro) */ rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr});
     const ms=renderer.capabilities.isWebGL2 && !!THREE.WebGLMultisampleRenderTarget; this.msaa=false;
     const comp=new THREE.EffectComposer(renderer,rt);
+    if(level!=='alto'){ const d1=depthTex(w*pr,h*pr), d2=depthTex(w*pr,h*pr); if(d1&&d2){ comp.renderTarget1.depthTexture=d1; comp.renderTarget2.depthTexture=d2; } }
     if(level!=='alto') comp.addPass(new THREE.RenderPass(scene,camera)); // no Alto quem desenha a cena é o SSAO (antes ela era desenhada duas vezes)
     if(level==='alto'){ const ss=new THREE.SSAOPass(scene,camera,w,h);
       if(ms){ ss.beautyRenderTarget.dispose(); const bt=new THREE.WebGLMultisampleRenderTarget(w*pr,h*pr,{type:hdr}); bt.samples=4; ss.beautyRenderTarget=bt; this.msaa=true; }
-      else { ss.beautyRenderTarget.dispose(); ss.beautyRenderTarget=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr}); } ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
+      else { ss.beautyRenderTarget.dispose(); ss.beautyRenderTarget=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr}); }
+      { const d=depthTex(w*pr,h*pr); if(d){ ss.beautyRenderTarget.depthTexture=d; ss.ssaoMaterial.uniforms.tDepth.value=d; if(ss.depthRenderMaterial) ss.depthRenderMaterial.uniforms.tDepth.value=d; } } ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
       // pipas, linhas, nuvens e pessoas ficam fora do cálculo de sombra de canto (evita "quadrado" escuro no céu)
       const orig=ss.renderOverride.bind(ss); ss.renderOverride=(...a)=>{ const hid=[]; scene.traverse(o=>{ if(o.visible&&(o.userData.noAO||o.isSprite||o.isSkinnedMesh||o.isLine)){ hid.push(o); o.visible=false; } }); orig(...a); hid.forEach(o=>o.visible=true); };
       comp.addPass(ss); this.ssao=ss; } else this.ssao=null;
