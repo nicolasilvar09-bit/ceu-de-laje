@@ -73,6 +73,10 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 #marker{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px}
 #marker i{width:0;height:0;border:9px solid transparent;border-top:14px solid var(--pipa);filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
 #marker span{font-family:var(--display);font-size:12px;color:var(--pipa);text-shadow:0 1px 0 var(--ink),0 0 4px var(--ink)}
+#evtbar{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:linear-gradient(90deg,#f2b705,#ffd23f);color:#14202e;font-family:var(--display);font-size:14px;padding:5px 14px;border-radius:999px;box-shadow:0 3px 0 rgba(0,0,0,.3);white-space:nowrap;pointer-events:none;max-width:70vw;overflow:hidden;text-overflow:ellipsis}
+#evtbar.vento{background:linear-gradient(90deg,#7fd0f0,#cfeefa)}#evtbar.rei{background:linear-gradient(90deg,#e8412f,#ff7a1a);color:#fff}
+.bubble{position:absolute;left:0;top:0;background:#fff;color:#14202e;font-family:var(--display);font-size:13px;padding:3px 9px;border-radius:10px;white-space:nowrap;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.bubble::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-5px;border:5px solid transparent;border-top-color:#fff;border-bottom:0}
 .klabel{position:absolute;left:0;top:0;font-size:11px;font-weight:600;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap;transform:translate(-50%,-100%)}
 
 /* toque */
@@ -264,6 +268,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
   <div id="ring" hidden><i></i></div>
   <div id="marker" hidden><i></i><span></span></div>
   <div id="labels"></div>
+  <div id="evtbar" hidden></div>
   <div id="lineinfo">
     <div id="fight" hidden>
       <div class="t">CRUZOU!</div>
@@ -399,7 +404,7 @@ addEventListener('resize',resize); resize();
 
 /* ---------------- vento ---------------- */
 const wind={base:0.35,ang:0.35,str:1,D:V(),P:V(),
-  update(t){ this.ang=this.base+Math.sin(t*0.011)*0.22+Math.sin(t*0.029)*0.07; this.str=1+0.15*Math.sin(t*0.21)+0.07*Math.sin(t*0.73);
+  update(t){ this.ang=this.base+Math.sin(t*0.011)*0.22+Math.sin(t*0.029)*0.07; this.str=(1+0.15*Math.sin(t*0.21)+0.07*Math.sin(t*0.73))*(this.boost||1)*(this.boost>1?1+0.12*Math.sin(t*1.7)+0.08*Math.sin(t*3.1):1);
     this.D.set(Math.cos(this.ang),0,Math.sin(this.ang)); this.P.set(-Math.sin(this.ang),0,Math.cos(this.ang)); }};
 wind.update(0);
 
@@ -878,6 +883,8 @@ DESIGNS.push(
   {name:'Chamas',tail:0xff7a1a,draw(g,s){ g.fillStyle='#16181d'; g.fillRect(0,0,s,s); for(const [c,h] of [['#e8412f',0.62],['#ff7a1a',0.5],['#ffd23f',0.36]]){ g.fillStyle=c; g.beginPath(); g.moveTo(0,s); for(let i=0;i<=8;i++){ const x=i*s/8; g.lineTo(x-s/16,s*(1-h)+(i%2?s*0.1:0)); g.lineTo(x,s*(1-h)+(i%2?0:s*0.12)); } g.lineTo(s,s); g.closePath(); g.fill(); } }},
   {name:'Caveira',tail:0xffffff,draw(g,s){ g.fillStyle='#16181d'; g.fillRect(0,0,s,s); g.fillStyle='#f4f1ea'; g.beginPath(); g.arc(s/2,s*0.4,s*0.2,0,TAU); g.fill(); g.fillRect(s*0.4,s*0.52,s*0.2,s*0.12); g.fillStyle='#16181d'; g.beginPath(); g.arc(s*0.43,s*0.4,s*0.055,0,TAU); g.arc(s*0.57,s*0.4,s*0.055,0,TAU); g.fill(); g.fillRect(s*0.47,s*0.55,s*0.02,s*0.09); g.fillRect(s*0.51,s*0.55,s*0.02,s*0.09); }},
   {name:'Mosaico',tail:0x2fa84f,draw(g,s){ const C=['#e8412f','#ffd23f','#2a6fdb','#2fa84f','#f6f1e6','#ff7a1a','#8e44ad'], n=5, c=s/n; let h=9; for(let j=0;j<n;j++) for(let i=0;i<n;i++) for(let t=0;t<2;t++){ h=(h*1103515245+12345)&0x7fffffff; g.fillStyle=C[h%C.length]; g.beginPath(); if(t){ g.moveTo(i*c,j*c); g.lineTo(i*c+c,j*c); g.lineTo(i*c,j*c+c); } else { g.moveTo(i*c+c,j*c); g.lineTo(i*c+c,j*c+c); g.lineTo(i*c,j*c+c); } g.closePath(); g.fill(); } }});
+const GOLD={name:'Dourada',tail:0xffd23f,hidden:true,draw(g,s){ const gr=g.createLinearGradient(0,0,s,s); gr.addColorStop(0,'#fff3a8'); gr.addColorStop(0.5,'#f2b705'); gr.addColorStop(1,'#a8740a'); g.fillStyle=gr; g.fillRect(0,0,s,s); star(g,s/2,s*0.45,s*0.2,'#fffbe0'); }};
+DESIGNS.push(GOLD);
 function drawKite(g,s,d,shape='pipa'){ const SH=SHAPES[shape], SHAPE=SH.pts;
   g.clearRect(0,0,s,s); g.save(); g.beginPath(); SHAPE.forEach(([x,y],i)=>{const [X,Y]=PX(s,x,y); i?g.lineTo(X,Y):g.moveTo(X,Y);}); g.closePath(); g.clip();
   d.draw(g,s); g.restore();
@@ -947,7 +954,7 @@ function buildShop(){
     for(let z=20.8;z<27.3;z+=0.32){ const sp=new THREE.Mesh(SPOOL,MS(pick([0xe8412f,0xffd23f,0x1d4fa8,0x2fa84f,0xf4f4f4,0x8e44ad,0xff7a1a]))); sp.position.set(11.4,y+0.08,z); g.add(sp); } }
   // pipas penduradas nas duas paredes laterais, com rabiolas
   // atlas: todas as pipas da parede numa textura só (1 chamada de desenho em vez de 24)
-  const AT=128, combos=[]; for(const d of DESIGNS) for(const sh of SHAPE_KEYS) combos.push([d,sh]); const cols=8, rows=Math.ceil(combos.length/cols);
+  const AT=128, combos=[]; for(const d of DESIGNS) if(!d.hidden) for(const sh of SHAPE_KEYS) combos.push([d,sh]); const cols=8, rows=Math.ceil(combos.length/cols);
   const ac=document.createElement('canvas'); ac.width=cols*AT; ac.height=rows*AT; const ag=ac.getContext('2d');
   combos.forEach(([d,sh],i)=>{ const kc=document.createElement('canvas'); kc.width=kc.height=AT; drawKite(kc.getContext('2d'),AT,d,sh); ag.drawImage(kc,(i%cols)*AT,Math.floor(i/cols)*AT); });
   const atex=new THREE.CanvasTexture(ac); atex.encoding=THREE.sRGBEncoding; const amat=new THREE.MeshStandardMaterial({map:atex,side:THREE.DoubleSide,alphaTest:0.5,roughness:0.8});
@@ -1247,7 +1254,7 @@ class Kite{
     g.updateMatrixWorld(); this.knot.set(0,0.05,0.75); this.sail.localToWorld(this.knot);
     // papel de seda: acende quando o sol está atrás da pipa (contraluz)
     T2.subVectors(this.pos,camera.position).normalize(); const back=Math.max(0,T2.dot(SUN_DIR));
-    this.sail.material.emissiveIntensity=0.08+0.75*back*back+(this.owner&&this.owner.embalado>now?0.35+0.25*Math.sin(now*8):0);
+    this.sail.material.emissiveIntensity=0.08+0.75*back*back+(this.golden?0.45+0.2*Math.sin(now*5):0)+(this.owner&&this.owner.embalado>now?0.35+0.25*Math.sin(now*8):0);
     // linha
     const arr=this.line.geometry.attributes.position.array;
     if(this.state==='flying'||this.state==='crashed'){
@@ -1389,7 +1396,7 @@ class Flyer{
     this.person.g.rotation.y=this.face;
     this.hand.set(this.pos.x+Math.sin(this.face)*0.35,this.pos.y+2.05,this.pos.z+Math.cos(this.face)*0.35);
     if(!k){ animPerson(this.person,0,dt,false); this.respawn-=dt;
-      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS),this,pick(SHAPE_KEYS)); applyLine(this.kite,LINES[this.tierL]); this.kite.hp=this.kite.hpMax; this.kite.netId='b'+flyers.indexOf(this)+'-'+Math.random().toString(36).slice(2,7); this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
+      if(this.respawn<=0){ this.kite=new Kite(pick(DESIGNS.filter(d=>!d.hidden)),this,pick(SHAPE_KEYS)); applyLine(this.kite,LINES[this.tierL]); this.kite.hp=this.kite.hpMax; this.kite.netId='b'+flyers.indexOf(this)+'-'+Math.random().toString(36).slice(2,7); this.kite.hand.copy(this.hand); this.kite.L=6; this.kite.launch(); this.goal.L=R(40,90); this.goal.u=R(-.5,.5); this.aiT=R(3,6); }
       return; }
     k.hand.copy(this.hand);
     const inp={pull:false,release:false,reel:false,steer:0};
@@ -1508,7 +1515,7 @@ function updateTow(dt,reel){ const k=player.tow; if(!k) return; if(k.state!=='to
       pk.curve(k.hookS,k.pos); k.pos.y-=0.6; k.pos.x+=Math.sin(now*3+k.id)*0.3;
       if(k.hookS*L<1.6){ k.towL=0; }
       else { k.towL=k.pos.distanceTo(k.hand)+0.5; }
-      if(k.towL<1.4){ player.tow=null; player.inv.push({d:k.design,s:k.shape}); player.apar++; player.money+=25; stat('apar'); stat('arapar');
+      if(k.towL<1.4){ player.tow=null; player.inv.push({d:k.design,s:k.shape}); player.apar++; player.money+=25; stat('apar'); stat('arapar'); if(k.golden) goldenCaught();
         toast('APAROU NO AR!',`+1 ${SHAPES[k.shape].name} ${k.design.name} · +R$ 25`); feed(`Você aparou no ar a pipa de <em>${k.ownerName}</em>`); Sx.catch(); k.dispose(); }
       return; }
     // sua pipa caiu ou foi cortada: a outra fica presa só pela linha na sua mão
@@ -1518,7 +1525,7 @@ function updateTow(dt,reel){ const k=player.tow; if(!k) return; if(k.state!=='to
   k.vel.x=lerp(k.vel.x,wind.D.x*2.2,dt); k.vel.z=lerp(k.vel.z,wind.D.z*2.2,dt); k.vel.y=-1.2;
   k.pos.addScaledVector(k.vel,dt); const g=world.topAt(k.pos.x,k.pos.z,0.3)+0.12; if(k.pos.y<g) k.pos.y=g;
   const d=T6.subVectors(k.pos,k.hand); const L=d.length(); if(L>k.towL){ k.pos.copy(k.hand).addScaledVector(d,k.towL/L); if(k.pos.y<g) k.pos.y=g; }
-  if(k.towL<1.4){ player.tow=null; player.inv.push({d:k.design,s:k.shape}); player.apar++; player.money+=15; stat('apar');
+  if(k.towL<1.4){ player.tow=null; player.inv.push({d:k.design,s:k.shape}); player.apar++; player.money+=15; stat('apar'); if(k.golden) goldenCaught();
     toast('APAROU!',`+1 ${SHAPES[k.shape].name} ${k.design.name} · +R$ 15`); feed(`Você aparou a pipa de <em>${k.ownerName}</em>`); Sx.catch(); k.dispose(); }
 }
 
@@ -1593,7 +1600,7 @@ function cutKite(v,cutter,s){
   v.via=null; v.state='free'; v.trail=clamp(v.pos.distanceTo(cut)*0.85,8,40); v.vel.copy(wind.D).multiplyScalar(2.4); v.vel.y=-1.5; v.owner=null; v.contact=null;
   if(owner){ owner.kite=null; if(owner.respawn!==undefined) owner.respawn=R(7,13); if(owner.target===v) owner.target=null; }
   for(const f of flyers) if(f.target===v) f.target=null;
-  sparks(cut,24); Sx.cut();
+  sparks(cut,24); Sx.cut(); crowdShout(cut,cutter,owner); reiCount(cutter);
   if(cutter.owner===player){ const bonus=(vs&&vs.f===owner)?100:0; player.money+=40+bonus; if(bonus){ stat('vs'); feed(`Você venceu o Vs contra <em>${v.ownerName}</em> · +R$ 100`); setTimeout(()=>toast('GANHOU O VS!','+R$ 140 no bolso'),900); vs=null; } }
   if(vs && owner===player && cutter.owner===vs.f){ setTimeout(()=>toast('PERDEU O VS',`${vs&&vs.f.name||'O rival'} levou essa`,'red'),900); feed(`<em>${cutter.ownerName}</em> ganhou o Vs`); vs=null; }
   if(vs && (owner===vs.f || owner===player)) vs=null;
@@ -1686,7 +1693,7 @@ function drawRadar(){
 }
 const SAFE={t:60,r:20,b:60,l:14,rects:[],at:-1};
 function hudSafe(){ if(now-SAFE.at<0.5) return SAFE; SAFE.at=now; const W=innerWidth,H=innerHeight, R=[];
-  for(const id of ['radar','b-vs','pad','lineinfo','keys','b-mount','b-catch','b-enter','b-talk','joyzone']){ const e=document.getElementById(id); if(!e||e.hidden||!e.getClientRects().length||getComputedStyle(e).visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(r.width>0&&r.height>0) R.push(r); }
+  for(const id of ['radar','b-vs','pad','lineinfo','keys','evtbar','b-mount','b-catch','b-enter','b-talk','joyzone']){ const e=document.getElementById(id); if(!e||e.hidden||!e.getClientRects().length||getComputedStyle(e).visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(r.width>0&&r.height>0) R.push(r); }
   const st=document.querySelector('#hud .stats'), sb=document.getElementById('b-shop'); let top=12; for(const e of [st,sb&&sb.parentElement]) if(e){ const r=e.getBoundingClientRect(); if(r.height) { top=Math.max(top,r.bottom+10); R.push(r); } }
   const rd=document.getElementById('radar').getBoundingClientRect(); const li=document.getElementById('lineinfo').getBoundingClientRect();
   SAFE.t=top; SAFE.l=14; SAFE.r=rd.width?W-rd.left+8:20; SAFE.b=li.height?H-li.top+8:20; SAFE.rects=R; return SAFE; }
@@ -1695,7 +1702,50 @@ function hitsHud(x,y,w,h){ for(const r of SAFE.rects) if(x<r.right+4&&x+w>r.left
 function toSafeEdge(x,y,z){ const W=innerWidth,H=innerHeight; const L=SAFE.l,T=SAFE.t,Rr=W-SAFE.r,B=H-SAFE.b, cx=(L+Rr)/2, cy=(T+B)/2;
   let dx=x-cx, dy=y-cy; if(z>1){dx=-dx;dy=-dy;} const s=Math.min((Rr-cx)/Math.abs(dx||1e-3),(B-cy)/Math.abs(dy||1e-3)); return [cx+dx*s,cy+dy*s,Math.atan2(dy,dx)]; }
 function project(p){ T1.copy(p).project(camera); return [(T1.x+1)/2*innerWidth,(1-T1.y)/2*innerHeight,T1.z]; }
+const EVT={next:60,cur:null,end:0,gold:null,rei:null};
+const SHOUT_WIN=['É NÓIS!','RELEI!','TOMA!','SAI DAÍ!'], SHOUT_LOSE=['AAAH!','ME RELOU!','VOLTA AQUI!','NÃO!'], SHOUT_ALL=['RELOU!','APARA!','VAI CAIR!','CORTOU!','ÊÊÊÊ!','MANDA!'];
+const bubbles=[]; { const L=$('#labels'); for(let i=0;i<6;i++){ const b=document.createElement('div'); b.className='bubble'; b.hidden=true; L.appendChild(b); bubbles.push({el:b,f:null,t:0}); } }
+function say(fl,txt){ const b=bubbles.find(x=>x.t<=0)||bubbles[0]; b.f=fl; b.t=2.2; b.el.textContent=txt; }
+function crowdShout(pt,cutter,owner){ if(pt.distanceTo(camera.position)>170) return;
+  if(cutter&&cutter.owner instanceof Flyer) say(cutter.owner,pick(SHOUT_WIN));
+  if(owner instanceof Flyer) setTimeout(()=>say(owner,pick(SHOUT_LOSE)),350);
+  const near=flyers.filter(f=>f!==owner&&(!cutter||f!==cutter.owner)).sort((a,b)=>a.pos.distanceTo(pt)-b.pos.distanceTo(pt)).slice(0,2);
+  near.forEach((f,i)=>setTimeout(()=>say(f,pick(SHOUT_ALL)),600+i*450)); }
+function updBubbles(dt){ for(const b of bubbles){ if(b.t<=0){ b.el.hidden=true; continue; } b.t-=dt; T5.copy(b.f.pos); T5.y+=2.6; const [x,y,z]=project(T5);
+  const vis=z<1&&x>40&&x<innerWidth-40&&y>SAFE.t+30&&y<innerHeight-SAFE.b&&!hitsHud(x-45,y-30,90,30); b.el.hidden=!vis; if(vis) b.el.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`; } }
+function reiCount(cutter){ if(!EVT.rei||!cutter||!cutter.owner) return; const n=cutter.owner===player?'Você':cutter.ownerName; EVT.rei.set(n,(EVT.rei.get(n)||0)+1); }
+function goldenCaught(){ player.money+=150; addXP(100); setTimeout(()=>toast('PIPA DOURADA!','+R$ 150 e +100 XP · ela foi pro seu estoque'),600); feed('Você aparou a <em>Pipa Dourada</em>'); }
+function spawnGolden(d){ const k=new Kite(GOLD,null,'estrela'); k.golden=true; k.ownerName='Pipa Dourada'; k.netId=d.gid; k.pos.set(d.x,d.y,d.z); k.hand.copy(k.pos);
+  k.via=null; k.state='free'; k.trail=28; k.vel.set(wind.D.x*2.2,-0.9,wind.D.z*2.2); k.contact=null; spawnRunners(k); for(const r of runners) if(r.target===k) r.delay=(r.delay||0)+7; EVT.gold=k; }
+// o dono da sala (ou quem está sozinho) sorteia; todo mundo da sala recebe o mesmo evento
+function startEvent(d,fromNet){ if(EVT.cur) endEvent(true); EVT.cur=d.k; EVT.end=now+(d.k==='rei'?120:d.k==='ventania'?60:75);
+  if(d.k==='dourada'){ spawnGolden(d); toast('PIPA DOURADA NO CÉU!','Vale R$ 150: apare com a mão ou com a sua linha'); }
+  else if(d.k==='ventania'){ wind.boost=1.45; toast('VENTANIA!','Vento forte por 1 minuto: a pipa corre e balança mais'); }
+  else if(d.k==='rei'){ EVT.rei=new Map(); toast('REI DO CÉU!','2 minutos: quem relar mais leva R$ 200'); }
+  feed('Evento: <em>'+({dourada:'Pipa Dourada',ventania:'Ventania',rei:'Rei do Céu'})[d.k]+'</em>');
+  if(!fromNet) netSend('evt',d); }
+function endEvent(quiet){ const k=EVT.cur; EVT.cur=null; EVT.next=now+R(150,240);
+  if(k==='ventania'){ wind.boost=1; if(!quiet) toast('O VENTO ACALMOU','Volta ao normal'); }
+  if(k==='dourada'){ if(EVT.gold&&EVT.gold.state!=='gone'&&EVT.gold.state!=='towed') EVT.gold.dispose(); EVT.gold=null; }
+  if(k==='rei'&&EVT.rei){ const arr=[...EVT.rei.entries()].sort((a,b)=>b[1]-a[1]); EVT.rei=null;
+    if(!arr.length){ if(!quiet) toast('NINGUÉM FOI REI','Ninguém relou nessa disputa'); }
+    else if(arr[0][0]==='Você'){ player.money+=200; addXP(150); toast('VOCÊ É O REI DO CÉU!',`${arr[0][1]} relos · +R$ 200 e +150 XP`); feed('Você foi o <em>Rei do Céu</em>'); }
+    else if(!quiet){ toast(arr[0][0].toUpperCase()+' É O REI DO CÉU',`${arr[0][1]} relos na disputa`,'red'); } } }
+function updEvents(dt){ if(!running) return; const bar=$('#evtbar');
+  const boss=!NET.on||NET.host;
+  if(!EVT.cur && boss && now>EVT.next){ const k=pick(['dourada','ventania','rei']); const d={k};
+    if(k==='dourada'){ const a=R(-1,1)*30; d.x=-wind.D.x*55+wind.P.x*a; d.z=-wind.D.z*55+wind.P.z*a; d.y=R(65,85); d.gid='gold-'+Math.random().toString(36).slice(2,8); }
+    startEvent(d,false); }
+  if(EVT.cur){ const left=Math.max(0,EVT.end-now), mm=Math.floor(left/60)+':'+String(Math.floor(left%60)).padStart(2,'0');
+    if(EVT.cur==='dourada' && (!EVT.gold||EVT.gold.state==='gone')) endEvent(true);
+    else if(left<=0) endEvent(false); }
+  if(!EVT.cur){ bar.hidden=true; return; } bar.hidden=false; bar.className=EVT.cur==='ventania'?'vento':EVT.cur==='rei'?'rei':'';
+  const left=Math.max(0,EVT.end-now), mm=Math.floor(left/60)+':'+String(Math.floor(left%60)).padStart(2,'0');
+  let txt=EVT.cur==='dourada'?'PIPA DOURADA NO CÉU · APARE!':EVT.cur==='ventania'?'VENTANIA · '+mm:'REI DO CÉU · '+mm;
+  if(EVT.cur==='rei'&&EVT.rei){ const top=[...EVT.rei.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>n+' '+c).join(' · '); txt+=top?' · '+top:' · ninguém relou ainda'; }
+  setText(bar,'evt',txt); }
 function updateHUD(dt){
+  updEvents(dt); updBubbles(dt);
   hudSafe();
   setText($('#st-lv'),'lv',String(PROG.lvl)); { const w=(PROG.xp/needXP(PROG.lvl)*100).toFixed(0)+'%'; if(cache.xpw!==w){ cache.xpw=w; $('#st-xp').style.width=w; } }
   if(running && (progDirty&&now-lastSave>4 || now-lastSave>15)) saveProg();
@@ -1720,7 +1770,7 @@ function updateHUD(dt){
       ringArrow.style.transform=`rotate(${Math.atan2(x2-x,-(y2-y))}rad)`; } else ringEl.hidden=true; }
   else ringEl.hidden=true;
   // marcador da pipa caindo mais perto
-  let best=null,bd=1e9; for(const f of freeKites()){ const d=f.pos.distanceTo(player.pos); if(d<bd){bd=d;best=f;} }
+  let best=null,bd=1e9,bs=1e9; for(const f of freeKites()){ const d=f.pos.distanceTo(player.pos), sc=d*(f.golden?0.15:1); if(sc<bs){bs=sc;bd=d;best=f;} }
   if(best && running){ let [x,y,z]=project(best.pos); markerEl.hidden=false; setText(markerTxt,'m',(k&&k.state==='flying'&&best.state==='free'?'NO AR · ':'APARA ')+`${bd|0} m`);
     const W=innerWidth,H=innerHeight; let off=z>1||x<SAFE.l+40||x>W-SAFE.r-40||y<SAFE.t+30||y>H-SAFE.b-20||hitsHud(x-40,y-46,80,40);
     if(off){ const e=toSafeEdge(x,y,z); x=e[0]; y=e[1]; x=clamp(x,SAFE.l+40,W-SAFE.r-40); y=clamp(y,SAFE.t+20,H-SAFE.b-42);
@@ -1794,7 +1844,7 @@ function shopRender(){
     row.appendChild(bt); lw.appendChild(row); }
 }
 for(const k of SHAPE_KEYS){ const b=document.createElement('button'); b.type='button'; b.dataset.k=k; b.id='shape-'+k; const c=document.createElement('canvas'); c.width=c.height=84; drawKite(c.getContext('2d'),84,DESIGNS[0],k); b.append(c,SHAPES[k].name+' R$ '+SHAPES[k].price); b.onclick=()=>{ shop.shape=k; shopRender(); }; $('#shop-shapes').appendChild(b); }
-DESIGNS.forEach((d,i)=>{ const b=document.createElement('button'); b.type='button'; b.id='sd-'+i; const c=document.createElement('canvas'); c.width=c.height=96; b.append(c,d.name); b.onclick=()=>{ shop.design=d; shopRender(); }; $('#shop-designs').appendChild(b); });
+DESIGNS.forEach((d,i)=>{ if(d.hidden) return; const b=document.createElement('button'); b.type='button'; b.id='sd-'+i; const c=document.createElement('canvas'); c.width=c.height=96; b.append(c,d.name); b.onclick=()=>{ shop.design=d; shopRender(); }; $('#shop-designs').appendChild(b); });
 $('#shop-buy').addEventListener('click',()=>{ const p=SHAPES[shop.shape].price; if(player.money<p) return; player.money-=p; player.inv.push({d:shop.design,s:shop.shape}); $('#shop-msg').textContent=`${SHAPES[shop.shape].name} ${shop.design.name} foi pra mochila (${player.inv.length} pipas)`; Sx.catch(); shopRender(); });
 function openShop(){ shopEl.hidden=false; $('#shop-msg').textContent=pick(['Fala, parceiro! Escolhe aí.','Chegou pipa nova hoje, dá uma olhada.','Linha boa é a 24, aguenta o tranco.']); shopRender(); }
 $('#b-shop').addEventListener('click',()=>{ if(inShop()) { openShop(); return; } shopGPS=true; toast('LOJA DA ESQUINA','Siga a seta azul até a loja de pipas'); });
@@ -2112,13 +2162,13 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
 window.FX=FX;
 { let lv=''; try{ lv=localStorage.getItem('ceu_gfx')||''; }catch(e){} if(!['alto','medio','baixo'].includes(lv)) lv=TOUCH?'medio':'alto'; FX.build(lv); }
 requestAnimationFrame(frame);
-window.__ceu={player,kites,flyers,runners,step,camera,renderer,scene,get net(){return NET;},cutKite:(v,c,t)=>cutKite(v,c,t),moveActor:(a,dx,dz,dt)=>moveActor(a,dx,dz,dt),propLOD:f=>propLOD(f)};
+window.__ceu={player,kites,flyers,runners,step,camera,renderer,scene,get net(){return NET;},cutKite:(v,c,t)=>cutKite(v,c,t),moveActor:(a,dx,dz,dt)=>moveActor(a,dx,dz,dt),propLOD:f=>propLOD(f),evt:EVT,startEvent:d=>startEvent(d,true)};
 // pré-aquece: deixa os rivais já com pipa no céu atrás do menu
 for(let i=0;i<600;i++) step(1/30);
 
 /* ---------------- menu ---------------- */
 const dWrap=$('#designs');
-DESIGNS.forEach((d,i)=>{ const b=document.createElement('button'); b.type='button'; b.id='design-'+i; b.setAttribute('aria-pressed',i===0?'true':'false');
+DESIGNS.forEach((d,i)=>{ if(d.hidden) return; const b=document.createElement('button'); b.type='button'; b.id='design-'+i; b.setAttribute('aria-pressed',i===0?'true':'false');
   const c=document.createElement('canvas'); c.width=c.height=112; drawKite(c.getContext('2d'),112,d); b.appendChild(c); const s=document.createElement('span'); s.textContent=d.name; b.appendChild(s);
   b.addEventListener('click',()=>{ player.design=d; dWrap.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); });
   dWrap.appendChild(b); });
@@ -2173,6 +2223,7 @@ function netStart(room){
       .on('broadcast',{event:'cut'},({payload})=>netCut(payload))
       .on('broadcast',{event:'caught'},({payload})=>netCaught(payload))
       .on('broadcast',{event:'bots'},({payload})=>netBots(payload))
+      .on('broadcast',{event:'evt'},({payload})=>{ if(payload&&payload.id!==NET.id&&payload.k&&running) startEvent(payload,true); })
       .on('broadcast',{event:'vs'},({payload})=>netVs(payload))
       .on('broadcast',{event:'bye'},({payload})=>netDrop(payload.id))
       .on('presence',{event:'sync'},()=>netPresence())
@@ -2286,7 +2337,7 @@ $('#room-join').addEventListener('click',()=>{ const c=($('#room-code').value||'
 $('#room-link').addEventListener('click',async()=>{ const u=$('#room-link').dataset.url||''; try{ await navigator.clipboard.writeText(u); $('#room-link').textContent='LINK COPIADO'; }catch(e){ $('#room-code').value=u; $('#room-code').select(); $('#room-link').textContent='COPIE O LINK'; } setTimeout(()=>$('#room-link').textContent='COPIAR LINK DA SALA',2200); });
 $('#play').addEventListener('click',()=>{
   $('#menu').hidden=true; $('#hud').hidden=false; running=true; Sx.init();
-  const had=loadProg(); rollMissions(); setTimeout(()=>boostAniso(scene),1500);
+  const had=loadProg(); rollMissions(); EVT.next=now+45; setTimeout(()=>boostAniso(scene),1500);
   if(!had) player.inv=[{d:player.design,s:'pipa'},{d:player.design,s:'pipa'},{d:player.design,s:'pipa'}];
   else if(!player.inv.length) player.inv=[{d:player.design,s:'pipa'}]; // nunca começa sem nenhuma pipa
   netTrackSoon();

@@ -42,3 +42,11 @@ Créditos e licenças em [CREDITOS.md](CREDITOS.md).
 - XP vem de relo, aparada (no ar vale mais), corte de rabiola, cruzo no nó, VS e tempo de pipa no ar. Cada nível paga prêmio em grana.
 - Três missões por dia, iguais para todo mundo naquele dia.
 - Grana, pipas, linhas compradas, nível e missões ficam salvos no aparelho (navegador).
+
+## Eventos no céu
+A cada 2,5–4 minutos acontece um evento (na sala online, o dono da sala sorteia e todo mundo vê o mesmo):
+- **Pipa Dourada:** uma pipa cortada brilhante cai do alto. Quem aparar ganha R$ 150 e 100 XP. Os moleques demoram mais pra correr atrás dela.
+- **Ventania:** 1 minuto de vento forte com rajadas. A pipa corre mais e balança mais.
+- **Rei do Céu:** 2 minutos de disputa. Quem relar mais leva R$ 200 e 150 XP.
+
+A galera das lajes grita quando rola relo por perto ("RELOU!", "APARA!", "É NÓIS!").
