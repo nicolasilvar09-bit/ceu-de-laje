@@ -29,3 +29,5 @@
 ## Como regerar a versão web
 1. `node serve.js` (dentro de PipaPrototipo).
 2. Abra http://localhost:5178/convert.html e espere aparecer "DONE".
+3. Abra http://localhost:5178/compress.html (texturas dos personagens em JPEG, imagens repetidas removidas, paredes em 1024 e 512 px em `assets/tex/512/` pro celular).
+4. Para cada personagem: `node tools/repack.js assets/web/NOME.gltf.json` (junta vértices repetidos e reduz as animações pela metade das chaves).

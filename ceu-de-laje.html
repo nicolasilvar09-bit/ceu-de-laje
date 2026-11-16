@@ -379,7 +379,7 @@ scene.fog=new THREE.Fog(LC(0xc4d8e6),180,1100);
 const TL=new THREE.TextureLoader();
 const MAXANI=renderer.capabilities.getMaxAnisotropy(), ANI=TOUCH?Math.min(8,MAXANI):MAXANI;
 function boostAniso(root){ root.traverse(o=>{ if(!o.material) return; for(const m of (Array.isArray(o.material)?o.material:[o.material])) for(const k of ['map','normalMap','emissiveMap','roughnessMap']){ const t=m[k]; if(t&&t.anisotropy<ANI){ t.anisotropy=ANI; t.needsUpdate=true; } } }); }
-function texSet(id){ const d=TL.load(`assets/tex/${id}_diff.jpg`), n=TL.load(`assets/tex/${id}_nor.jpg`); d.encoding=THREE.sRGBEncoding;
+function texSet(id){ const dir=TOUCH?'assets/tex/512/':'assets/tex/'; /* celular baixa a versão de 512 px */ const d=TL.load(dir+id+'_diff.jpg'), n=TL.load(dir+id+'_nor.jpg'); d.encoding=THREE.sRGBEncoding;
   for(const t of [d,n]){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=ANI; } return {d,n}; }
 const loading={sky:false,people:false};
 const camera=new THREE.PerspectiveCamera(62,1,0.1,2600);
@@ -2157,13 +2157,14 @@ DESIGNS.forEach((d,i)=>{ if(d.hidden) return; const b=document.createElement('bu
   b.addEventListener('click',()=>{ player.design=d; dWrap.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); });
   dWrap.appendChild(b); });
 const playBtn=$('#play'); playBtn.disabled=true; playBtn.textContent='CARREGANDO…';
-loadAvatars();
+THREE.DefaultLoadingManager.onProgress=(u,a,b)=>{ if(playBtn.disabled) playBtn.textContent='CARREGANDO… '+Math.round(a/Math.max(b,1)*100)+'%'; };
+// personagens primeiro; os objetos do cenário só depois, pra não disputar a internet do celular
+loadAvatars().catch(()=>{}).finally(()=>loadProps());
 function gfxUI(){ document.querySelectorAll('.gfx').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.g===FX.level)));
   $('#gfx-info').textContent={alto:'sombra nos cantos, brilho, cor de cinema',medio:'brilho e cor de cinema',baixo:'mais leve, pra celular'}[FX.level]; }
 document.querySelectorAll('.gfx').forEach(b=>b.addEventListener('click',()=>{ FX.build(b.dataset.g); try{ localStorage.setItem('ceu_gfx',b.dataset.g); }catch(e){} gfxUI(); }));
 gfxUI();
-loadProps();
-const loadChk=setInterval(()=>{ if((loading.sky&&loading.people)||performance.now()>30000){ clearInterval(loadChk); playBtn.disabled=false; playBtn.textContent='SOLTAR PIPA'; } },200);
+const loadChk=setInterval(()=>{ if((loading.sky&&loading.people)||performance.now()>12000){ clearInterval(loadChk); playBtn.disabled=false; playBtn.textContent='SOLTAR PIPA'; } },200);
 const CHARS=[['Male_Adult_04','Léo'],['Male_Adult_08','Beto'],['Male_Child_01','Juninho'],['Male_Child_02','Tiago'],['Female_Child_01','Bia']];
 function setPlayerAvatar(name){ const p=player.person; if(p.av===name&&p.model) return; if(p.model){ p.g.remove(p.model); p.model=null; p.mixer=null; if(p.can){ scene.remove(p.can); scene.remove(p.canLine); p.can=null; } }
   headHidden=false; p.av=name; if(avReady) attachAvatar(p); }

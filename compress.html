@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Compressor de assets</title>
+<!-- Ferramenta local: recomprime as texturas dos personagens (PNG -> JPEG, mantendo PNG onde há transparência),
+     tira imagens repetidas dos objetos e gera texturas de parede em 1024 (PC) e 512 (celular).
+     Uso: node serve.js e abra http://localhost:5178/compress.html. Rodar UMA vez sobre os originais. -->
+<pre id="o">trabalhando…
+</pre>
+<script>
+const log=t=>document.getElementById('o').textContent+=t+'\n';
+const save=async(dir,name,data)=>{ const r=await fetch('/save?dir='+dir+'&name='+encodeURIComponent(name),{method:'POST',body:data}); log((await r.text())+' ('+(data.size?Math.round(data.size/1024):Math.round(data.length/1024))+' KB) '+dir); };
+const img=src=>new Promise((ok,er)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=er; i.src=src; });
+const canvasOf=(i,max)=>{ const s=Math.min(1,max/Math.max(i.width,i.height)); const c=document.createElement('canvas'); c.width=Math.round(i.width*s); c.height=Math.round(i.height*s); c.getContext('2d').drawImage(i,0,0,c.width,c.height); return c; };
+const blob=(c,type,q)=>new Promise(ok=>c.toBlob(ok,type,q));
+
+async function gltf(dir,name,max){
+  const j=await (await fetch('assets/'+dir+'/'+name,{cache:'no-store'})).json();
+  const maskOld=new Set(); (j.materials||[]).forEach(m=>{ if(m.alphaMode&&m.alphaMode!=='OPAQUE'){ const t=m.pbrMetallicRoughness&&m.pbrMetallicRoughness.baseColorTexture; if(t) maskOld.add(j.textures[t.index].source); } });
+  // imagens repetidas viram uma só
+  const seen=new Map(), remap=[], imgs=[];
+  (j.images||[]).forEach((im,i)=>{ if(seen.has(im.uri)) remap[i]=seen.get(im.uri); else { seen.set(im.uri,imgs.length); remap[i]=imgs.length; imgs.push(im); } });
+  (j.textures||[]).forEach(t=>t.source=remap[t.source]);
+  const mask=new Set([...maskOld].map(i=>remap[i]));
+  for(let k=0;k<imgs.length;k++){ const im=imgs[k]; if(!im.uri||!im.uri.startsWith('data:image')) continue;
+    const c=canvasOf(await img(im.uri),max); const png=mask.has(k);
+    im.uri=c.toDataURL(png?'image/png':'image/jpeg',0.84); im.mimeType=png?'image/png':'image/jpeg'; }
+  j.images=imgs;
+  await save(dir,name,JSON.stringify(j));
+}
+async function tex(id,kind){
+  const i=await img('assets/tex/'+id+'_'+kind+'.jpg?'+Date.now());
+  await save('tex',id+'_'+kind+'.jpg',await blob(canvasOf(i,1024),'image/jpeg',kind==='nor'?0.86:0.8));
+  await save('tex/512',id+'_'+kind+'.jpg',await blob(canvasOf(i,512),'image/jpeg',kind==='nor'?0.86:0.8));
+}
+(async()=>{
+  try{
+    for(const [n,max] of [['Male_Adult_04',1024],['Male_Adult_08',512],['Male_Child_01',512],['Male_Child_02',512],['Female_Child_01',512]]) await gltf('web',n+'.gltf.json',max);
+    for(const p of ['plastic_monobloc_chair_01','propane_tank','old_tyre','barrel_03','plastic_crate_02','trashbag','metal_trash_can','plastic_jerrycan','planter_pot_clay','potted_plant_04','painted_wooden_stool','water_manhole_cover']) await gltf('web/props',p+'.gltf.json',512);
+    for(const id of ['concrete_block_wall','red_brick_plaster_patch_02','rough_plaster_brick','painted_plaster_wall','worn_plaster_wall','concrete_floor_worn_001','asphalt_floor']) for(const k of ['diff','nor']) await tex(id,k);
+    log('DONE');
+  }catch(e){ log('ERRO '+e); }
+})();
+</script>
