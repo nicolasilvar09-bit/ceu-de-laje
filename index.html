@@ -2127,7 +2127,8 @@ const SharpenShader={uniforms:{tDiffuse:{value:null},res:{value:new THREE.Vector
       e=texture2D(tDiffuse,vUv+vec2(res.x,0.)).rgb, w=texture2D(tDiffuse,vUv-vec2(res.x,0.)).rgb;
       vec3 mn=min(c,min(min(n,s),min(e,w))), mx=max(c,max(max(n,s),max(e,w)));
       vec3 amp=sqrt(clamp(min(mn,1.0-mx)/max(mx,vec3(1e-4)),0.0,1.0)); vec3 wt=-amp*mix(0.125,0.2,amount);
-      gl_FragColor=vec4(clamp((c+(n+s+e+w)*wt)/(1.0+4.0*wt),0.0,1.0),1.0); }`};
+      vec3 o=clamp((c+(n+s+e+w)*wt)/(1.0+4.0*wt),0.0,1.0); float dz=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))));
+      gl_FragColor=vec4(o+(dz-0.5)/255.0,1.0); }`}; /* o ruído de 1/255 desfaz as faixas do degradê */
 const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
   setRes(pr){ const w=innerWidth,h=innerHeight; this.pr=pr; renderer.setPixelRatio(pr); renderer.setSize(w,h,false);
     if(this.composer){ this.composer.setPixelRatio(pr); this.composer.setSize(w,h); if(this.fxaa) this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); if(this.sharp) this.sharp.uniforms.res.value.set(1/(w*pr),1/(h*pr)); } },
@@ -2141,13 +2142,14 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
     scene.fog.color.copy(level==='baixo'?this.fogBase:this.fogBase.clone().convertSRGBToLinear().multiplyScalar(0.72));
     if(level==='baixo' || !THREE.EffectComposer){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.outputEncoding=THREE.sRGBEncoding; this.markMaterials(); return; }
     renderer.toneMapping=THREE.NoToneMapping; renderer.outputEncoding=THREE.LinearEncoding; this.markMaterials();
-    const pr=renderer.getPixelRatio(), hdr=level==='alto'?THREE.HalfFloatType:THREE.UnsignedByteType, rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr});
+    const gl=renderer.getContext(), canHF=renderer.capabilities.isWebGL2?!!(gl.getExtension('EXT_color_buffer_float')||gl.getExtension('EXT_color_buffer_half_float')):!!(gl.getExtension('OES_texture_half_float')&&gl.getExtension('EXT_color_buffer_half_float'));
+    const pr=renderer.getPixelRatio(), hdr=canHF?THREE.HalfFloatType:THREE.UnsignedByteType, /* em 8 bits linear o céu vira faixas (parecia erro) */ rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr});
     const ms=renderer.capabilities.isWebGL2 && !!THREE.WebGLMultisampleRenderTarget; this.msaa=false;
     const comp=new THREE.EffectComposer(renderer,rt);
     if(level!=='alto') comp.addPass(new THREE.RenderPass(scene,camera)); // no Alto quem desenha a cena é o SSAO (antes ela era desenhada duas vezes)
     if(level==='alto'){ const ss=new THREE.SSAOPass(scene,camera,w,h);
-      if(ms){ ss.beautyRenderTarget.dispose(); const bt=new THREE.WebGLMultisampleRenderTarget(w*pr,h*pr,{type:THREE.HalfFloatType}); bt.samples=4; ss.beautyRenderTarget=bt; this.msaa=true; }
-      else { ss.beautyRenderTarget.dispose(); ss.beautyRenderTarget=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:THREE.HalfFloatType}); } ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
+      if(ms){ ss.beautyRenderTarget.dispose(); const bt=new THREE.WebGLMultisampleRenderTarget(w*pr,h*pr,{type:hdr}); bt.samples=4; ss.beautyRenderTarget=bt; this.msaa=true; }
+      else { ss.beautyRenderTarget.dispose(); ss.beautyRenderTarget=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr}); } ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
       // pipas, linhas, nuvens e pessoas ficam fora do cálculo de sombra de canto (evita "quadrado" escuro no céu)
       const orig=ss.renderOverride.bind(ss); ss.renderOverride=(...a)=>{ const hid=[]; scene.traverse(o=>{ if(o.visible&&(o.userData.noAO||o.isSprite||o.isSkinnedMesh||o.isLine)){ hid.push(o); o.visible=false; } }); orig(...a); hid.forEach(o=>o.visible=true); };
       comp.addPass(ss); this.ssao=ss; } else this.ssao=null;
