@@ -355,6 +355,15 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
   </div>
 </div>
 
+<script>/* mostra qualquer erro na tela, pra dar print no celular */
+(function(){ var box=null, n=0; function show(m){ if(n++>4) return; if(!box){ box=document.createElement('div'); box.id='errbox';
+  box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#b3261e;color:#fff;font:12px/1.35 monospace;padding:8px 10px;border-radius:8px;white-space:pre-wrap;max-height:40vh;overflow:auto';
+  box.onclick=function(){ box.remove(); box=null; }; (document.body||document.documentElement).appendChild(box); } box.textContent+=(box.textContent?'\n':'')+'ERRO: '+m; }
+  window.__showErr=show;
+  window.addEventListener('error',function(e){ if(e.target&&e.target!==window&&e.target.src){ show('não baixou '+e.target.src.split('/').pop()); return; } show((e.message||'?')+' @'+((e.filename||'').split('/').pop())+':'+(e.lineno||'')); },true);
+  window.addEventListener('unhandledrejection',function(e){ var r=e.reason; show('promise: '+(r&&(r.message||r)||'?')); });
+  window.addEventListener('load',function(){ if(!window.THREE) show('three.js não carregou (internet bloqueou o cdnjs?)'); });
+})();</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
@@ -386,6 +395,7 @@ let now = 0;
 /* ---------------- renderer ---------------- */
 const canvas=$('#c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+canvas.addEventListener('webglcontextlost',e=>{ e.preventDefault(); try{ if(localStorage.getItem('ceu_gfx')!=='baixo') localStorage.setItem('ceu_gfx','baixo'); }catch(_){} window.__showErr&&__showErr('o celular ficou sem memória de vídeo — troquei pra gráfico Baixo, toque aqui e recarregue a página'); },false);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, TOUCH?1.15:2));
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
@@ -2105,7 +2115,9 @@ function autoRes(rawDt){ if(!running||rawDt<=0||rawDt>0.25) return; PERF.acc+=ra
   if(avg>1/38 && pr>min) pr=Math.max(min,pr-0.15); else if(avg<1/56 && pr<FX.prMax) pr=Math.min(FX.prMax,pr+0.1); else return;
   FX.setRes(pr); }
 function frame(t){ requestAnimationFrame(frame); const raw=(t-last)/1000, dt=Math.min(0.05,raw); last=t; if(dt>0) step(dt); propLOD(); autoRes(raw);
-  if(TOUCH){ renderer.shadowMap.autoUpdate=false; if((++PERF.fc&1)===0) renderer.shadowMap.needsUpdate=true; } /* no celular a sombra atualiza a cada 2 quadros */ if(FX.composer) FX.composer.render(dt); else renderer.render(scene,camera); }
+  if(TOUCH){ renderer.shadowMap.autoUpdate=false; if((++PERF.fc&1)===0) renderer.shadowMap.needsUpdate=true; } /* no celular a sombra atualiza a cada 2 quadros */ try{ if(FX.composer) FX.composer.render(dt); else renderer.render(scene,camera); }catch(e){ gfxFail(e); } }
+function gfxFail(e){ if(FX.level==='baixo'){ if(!gfxFail.once){ gfxFail.once=1; window.__showErr&&__showErr('gráfico: '+(e&&e.message||e)); } return; }
+  try{ localStorage.setItem('ceu_gfx','baixo'); }catch(_){} try{ FX.build('baixo'); }catch(_){} window.__showErr&&__showErr('o gráfico '+'falhou ('+(e&&e.message||e)+'), troquei pra Baixo'); }
 /* ---------------- gráficos: Alto (oclusão + brilho + cor + suavização), Médio (brilho + cor + suavização), Baixo (direto) ---------------- */
 // cor de cinema: tonemap ACES, contraste, saturação, toque quente e vinheta, depois sRGB
 const GradeShader={uniforms:{tDiffuse:{value:null},exposure:{value:1.05},contrast:{value:1.05},saturation:{value:1.06},warm:{value:0.012},vignette:{value:0.26}},
@@ -2129,6 +2141,10 @@ const SharpenShader={uniforms:{tDiffuse:{value:null},res:{value:new THREE.Vector
       vec3 amp=sqrt(clamp(min(mn,1.0-mx)/max(mx,vec3(1e-4)),0.0,1.0)); vec3 wt=-amp*mix(0.125,0.2,amount);
       vec3 o=clamp((c+(n+s+e+w)*wt)/(1.0+4.0*wt),0.0,1.0); float dz=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))));
       gl_FragColor=vec4(o+(dz-0.5)/255.0,1.0); }`}; /* o ruído de 1/255 desfaz as faixas do degradê */
+let HF_OK=null; function hfOK(){ if(HF_OK!==null) return HF_OK; HF_OK=false;
+  try{ const gl=renderer.getContext(); if(renderer.capabilities.isWebGL2){ gl.getExtension('EXT_color_buffer_float'); gl.getExtension('EXT_color_buffer_half_float'); } else if(!gl.getExtension('OES_texture_half_float')) return HF_OK;
+    const t=new THREE.WebGLRenderTarget(4,4,{type:THREE.HalfFloatType}); const prev=renderer.getRenderTarget(); renderer.setRenderTarget(t); renderer.clear();
+    HF_OK=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE && gl.getError()===gl.NO_ERROR; renderer.setRenderTarget(prev); t.dispose(); }catch(e){ HF_OK=false; } return HF_OK; }
 const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
   setRes(pr){ const w=innerWidth,h=innerHeight; this.pr=pr; renderer.setPixelRatio(pr); renderer.setSize(w,h,false);
     if(this.composer){ this.composer.setPixelRatio(pr); this.composer.setSize(w,h); if(this.fxaa) this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); if(this.sharp) this.sharp.uniforms.res.value.set(1/(w*pr),1/(h*pr)); } },
@@ -2142,7 +2158,7 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
     scene.fog.color.copy(level==='baixo'?this.fogBase:this.fogBase.clone().convertSRGBToLinear().multiplyScalar(0.72));
     if(level==='baixo' || !THREE.EffectComposer){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.outputEncoding=THREE.sRGBEncoding; this.markMaterials(); return; }
     renderer.toneMapping=THREE.NoToneMapping; renderer.outputEncoding=THREE.LinearEncoding; this.markMaterials();
-    const gl=renderer.getContext(), canHF=renderer.capabilities.isWebGL2?!!(gl.getExtension('EXT_color_buffer_float')||gl.getExtension('EXT_color_buffer_half_float')):!!(gl.getExtension('OES_texture_half_float')&&gl.getExtension('EXT_color_buffer_half_float'));
+    const canHF=hfOK();
     const pr=renderer.getPixelRatio(), hdr=canHF?THREE.HalfFloatType:THREE.UnsignedByteType, /* em 8 bits linear o céu vira faixas (parecia erro) */ rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr});
     const ms=renderer.capabilities.isWebGL2 && !!THREE.WebGLMultisampleRenderTarget; this.msaa=false;
     const comp=new THREE.EffectComposer(renderer,rt);
@@ -2162,7 +2178,7 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
   markMaterials(){ scene.traverse(o=>{ const m=o.material; if(!m) return; (Array.isArray(m)?m:[m]).forEach(x=>x.needsUpdate=true); }); },
   resize(){ if(!this.composer) return; this.setRes(renderer.getPixelRatio()); } }; // o composer já redimensiona o SSAO na resolução certa (antes ele voltava pra resolução baixa)
 window.FX=FX;
-{ let lv=''; try{ lv=localStorage.getItem('ceu_gfx')||''; }catch(e){} if(!['alto','medio','baixo'].includes(lv)) lv=TOUCH?'medio':'alto'; FX.build(lv); }
+{ let lv=''; try{ lv=localStorage.getItem('ceu_gfx')||''; }catch(e){} if(!['alto','medio','baixo'].includes(lv)) lv=TOUCH?'medio':'alto'; try{ FX.build(lv); }catch(e){ gfxFail(e); } }
 requestAnimationFrame(frame);
 window.__ceu={player,kites,flyers,runners,step,camera,renderer,scene,get net(){return NET;},cutKite:(v,c,t)=>cutKite(v,c,t),moveActor:(a,dx,dz,dt)=>moveActor(a,dx,dz,dt),propLOD:f=>propLOD(f),evt:EVT,startEvent:d=>startEvent(d,true)};
 // pré-aquece: deixa os rivais já com pipa no céu atrás do menu
