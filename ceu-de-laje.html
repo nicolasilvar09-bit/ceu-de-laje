@@ -372,9 +372,10 @@ const LC=h=>new THREE.Color(h).convertSRGBToLinear();
 const scene=new THREE.Scene();
 scene.fog=new THREE.Fog(LC(0xc4d8e6),180,1100);
 const TL=new THREE.TextureLoader();
-const MAXANI=renderer.capabilities.getMaxAnisotropy();
+const MAXANI=renderer.capabilities.getMaxAnisotropy(), ANI=TOUCH?Math.min(8,MAXANI):MAXANI;
+function boostAniso(root){ root.traverse(o=>{ if(!o.material) return; for(const m of (Array.isArray(o.material)?o.material:[o.material])) for(const k of ['map','normalMap','emissiveMap','roughnessMap']){ const t=m[k]; if(t&&t.anisotropy<ANI){ t.anisotropy=ANI; t.needsUpdate=true; } } }); }
 function texSet(id){ const d=TL.load(`assets/tex/${id}_diff.jpg`), n=TL.load(`assets/tex/${id}_nor.jpg`); d.encoding=THREE.sRGBEncoding;
-  for(const t of [d,n]){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=Math.min(8,MAXANI); } return {d,n}; }
+  for(const t of [d,n]){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=ANI; } return {d,n}; }
 const loading={sky:false,people:false};
 const camera=new THREE.PerspectiveCamera(62,1,0.1,2600);
 function resize(){ const w=innerWidth,h=innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); if(window.FX) FX.resize(); }
@@ -992,6 +993,7 @@ function placeProps(src){
       im.castShadow=id!=='water_manhole_cover'; im.receiveShadow=true; im.frustumCulled=false; scene.add(im);
       im.userData.shadow=id!=='water_manhole_cover'; PROP_LOD.push({im,xz:list.map(l=>[l[0],l[2]]),all:im.instanceMatrix.array.slice()}); });
     if(BLOCK[id]) for(const [x,y,z] of list) world.add({x0:x-0.32,x1:x+0.32,z0:z-0.32,z1:z+0.32,top:y+BLOCK[id]}); }
+  boostAniso(scene);
   window.__props=Object.fromEntries(Object.entries(spots).map(([k,v])=>[k,v.length]));
 }
 // objetos detalhados só perto da câmera: longe eles quase não aparecem e custavam milhões de triângulos
@@ -2020,7 +2022,7 @@ const PERF={acc:0,n:0,fc:0};
 function autoRes(rawDt){ if(!running||rawDt<=0||rawDt>0.25) return; PERF.acc+=rawDt; PERF.n++; if(PERF.acc<2.5) return; const avg=PERF.acc/PERF.n; PERF.acc=0; PERF.n=0;
   let pr=FX.pr||renderer.getPixelRatio(); const min=TOUCH?0.75:0.9;
   if(avg>1/38 && pr>min) pr=Math.max(min,pr-0.15); else if(avg<1/56 && pr<FX.prMax) pr=Math.min(FX.prMax,pr+0.1); else return;
-  FX.pr=pr; renderer.setPixelRatio(pr); renderer.setSize(innerWidth,innerHeight,false); if(FX.composer){ FX.composer.setPixelRatio?FX.composer.setPixelRatio(pr):0; FX.composer.setSize(innerWidth,innerHeight); if(FX.fxaa) FX.fxaa.uniforms.resolution.value.set(1/(innerWidth*pr),1/(innerHeight*pr)); } }
+  FX.setRes(pr); }
 function frame(t){ requestAnimationFrame(frame); const raw=(t-last)/1000, dt=Math.min(0.05,raw); last=t; if(dt>0) step(dt); propLOD(); autoRes(raw);
   if(TOUCH){ renderer.shadowMap.autoUpdate=false; if((++PERF.fc&1)===0) renderer.shadowMap.needsUpdate=true; } /* no celular a sombra atualiza a cada 2 quadros */ if(FX.composer) FX.composer.render(dt); else renderer.render(scene,camera); }
 /* ---------------- gráficos: Alto (oclusão + brilho + cor + suavização), Médio (brilho + cor + suavização), Baixo (direto) ---------------- */
@@ -2037,10 +2039,20 @@ const GradeShader={uniforms:{tDiffuse:{value:null},exposure:{value:1.05},contras
       float l=dot(c,vec3(0.2126,0.7152,0.0722)); c=mix(vec3(l),c,saturation); c=(c-0.5)*contrast+0.5; c+=vec3(warm,warm*0.4,-warm*0.6);
       vec2 d=vUv-0.5; c*=1.0-vignette*dot(d,d)*1.6; c=clamp(c,0.0,1.0);
       c=mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-0.055,step(0.0031308,c)); gl_FragColor=vec4(c,1.0); }`};
-const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,
+const SharpenShader={uniforms:{tDiffuse:{value:null},res:{value:new THREE.Vector2(1/1024,1/768)},amount:{value:0.6}},
+  vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:`uniform sampler2D tDiffuse; uniform vec2 res; uniform float amount; varying vec2 vUv;
+    void main(){ vec3 c=texture2D(tDiffuse,vUv).rgb, n=texture2D(tDiffuse,vUv+vec2(0.,res.y)).rgb, s=texture2D(tDiffuse,vUv-vec2(0.,res.y)).rgb,
+      e=texture2D(tDiffuse,vUv+vec2(res.x,0.)).rgb, w=texture2D(tDiffuse,vUv-vec2(res.x,0.)).rgb;
+      vec3 mn=min(c,min(min(n,s),min(e,w))), mx=max(c,max(max(n,s),max(e,w)));
+      vec3 amp=sqrt(clamp(min(mn,1.0-mx)/max(mx,vec3(1e-4)),0.0,1.0)); vec3 wt=-amp*mix(0.125,0.2,amount);
+      gl_FragColor=vec4(clamp((c+(n+s+e+w)*wt)/(1.0+4.0*wt),0.0,1.0),1.0); }`};
+const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,sharp:null,
+  setRes(pr){ const w=innerWidth,h=innerHeight; this.pr=pr; renderer.setPixelRatio(pr); renderer.setSize(w,h,false);
+    if(this.composer){ this.composer.setPixelRatio(pr); this.composer.setSize(w,h); if(this.fxaa) this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); if(this.sharp) this.sharp.uniforms.res.value.set(1/(w*pr),1/(h*pr)); } },
   build(level){ this.level=level; if(this.composer){ this.composer.renderTarget1.dispose(); this.composer.renderTarget2.dispose(); this.composer=null; }
     const dpr=window.devicePixelRatio||1, w=innerWidth,h=innerHeight;
-    this.prMax=Math.min(dpr,level==='alto'?(TOUCH?1.5:2):level==='medio'?(TOUCH?1.3:1.5):(TOUCH?1.1:1.5)); this.pr=this.prMax; renderer.setPixelRatio(this.pr);
+    this.prMax=Math.min(dpr,level==='alto'?(TOUCH?1.75:2):level==='medio'?(TOUCH?1.6:1.5):(TOUCH?1.3:1.5)); this.pr=Math.min(this.prMax,TOUCH?(level==='alto'?1.4:level==='medio'?1.25:1.1):this.prMax); renderer.setPixelRatio(this.pr);
     const sm=level==='alto'?2048:1024; sun.shadow.normalBias=sm>1024?0.05:0.09; sun.shadow.bias=-0.0004; /* sem listras de sombra no chão (shadow acne) */ if(sun.shadow.mapSize.x!==sm){ sun.shadow.mapSize.set(sm,sm); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; } }
     renderer.setSize(w,h,false);
     // a neblina: sem pós ela é misturada depois do tonemap (espaço da tela); com pós ela entra antes, então precisa ser bem mais escura pra dar o mesmo resultado
@@ -2048,19 +2060,24 @@ const FX={level:'',composer:null,ssao:null,fxaa:null,bloom:null,
     scene.fog.color.copy(level==='baixo'?this.fogBase:this.fogBase.clone().convertSRGBToLinear().multiplyScalar(0.72));
     if(level==='baixo' || !THREE.EffectComposer){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.outputEncoding=THREE.sRGBEncoding; this.markMaterials(); return; }
     renderer.toneMapping=THREE.NoToneMapping; renderer.outputEncoding=THREE.LinearEncoding; this.markMaterials();
-    const pr=renderer.getPixelRatio(), rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:level==='alto'?THREE.HalfFloatType:THREE.UnsignedByteType});
-    const comp=new THREE.EffectComposer(renderer,rt); comp.addPass(new THREE.RenderPass(scene,camera));
-    if(level==='alto'){ const ss=new THREE.SSAOPass(scene,camera,w,h); ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
+    const pr=renderer.getPixelRatio(), hdr=level==='alto'?THREE.HalfFloatType:THREE.UnsignedByteType, rt=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:hdr});
+    const ms=renderer.capabilities.isWebGL2 && !!THREE.WebGLMultisampleRenderTarget; this.msaa=false;
+    const comp=new THREE.EffectComposer(renderer,rt);
+    if(level!=='alto') comp.addPass(new THREE.RenderPass(scene,camera)); // no Alto quem desenha a cena é o SSAO (antes ela era desenhada duas vezes)
+    if(level==='alto'){ const ss=new THREE.SSAOPass(scene,camera,w,h);
+      if(ms){ ss.beautyRenderTarget.dispose(); const bt=new THREE.WebGLMultisampleRenderTarget(w*pr,h*pr,{type:THREE.HalfFloatType}); bt.samples=4; ss.beautyRenderTarget=bt; this.msaa=true; }
+      else { ss.beautyRenderTarget.dispose(); ss.beautyRenderTarget=new THREE.WebGLRenderTarget(w*pr,h*pr,{type:THREE.HalfFloatType}); } ss.kernelRadius=1.2; ss.minDistance=0.0008; ss.maxDistance=0.04;
       // pipas, linhas, nuvens e pessoas ficam fora do cálculo de sombra de canto (evita "quadrado" escuro no céu)
       const orig=ss.renderOverride.bind(ss); ss.renderOverride=(...a)=>{ const hid=[]; scene.traverse(o=>{ if(o.visible&&(o.userData.noAO||o.isSprite||o.isSkinnedMesh||o.isLine)){ hid.push(o); o.visible=false; } }); orig(...a); hid.forEach(o=>o.visible=true); };
       comp.addPass(ss); this.ssao=ss; } else this.ssao=null;
     this.bloom=new THREE.UnrealBloomPass(new THREE.Vector2(w/2,h/2),level==='alto'?0.26:0.2,0.35,0.97); /* só o sol e reflexos fortes brilham; no celular em médio fica de fora pra sobrar desempenho pra nitidez */ if(level==='alto'||!TOUCH) comp.addPass(this.bloom);
     comp.addPass(new THREE.ShaderPass(GradeShader));
-    this.fxaa=new THREE.ShaderPass(THREE.FXAAShader); this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); comp.addPass(this.fxaa);
+    if(!this.msaa){ this.fxaa=new THREE.ShaderPass(THREE.FXAAShader); this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); comp.addPass(this.fxaa); } else this.fxaa=null;
+    this.sharp=new THREE.ShaderPass(SharpenShader); this.sharp.uniforms.amount.value=level==='alto'?0.55:0.75; this.sharp.uniforms.res.value.set(1/(w*pr),1/(h*pr)); comp.addPass(this.sharp);
     comp.setSize(w,h); this.composer=comp; },
   // texturas sRGB precisam recompilar quando a saída muda de sRGB pra linear
   markMaterials(){ scene.traverse(o=>{ const m=o.material; if(!m) return; (Array.isArray(m)?m:[m]).forEach(x=>x.needsUpdate=true); }); },
-  resize(){ if(!this.composer) return; const w=innerWidth,h=innerHeight, pr=renderer.getPixelRatio(); this.composer.setSize(w,h); if(this.ssao) this.ssao.setSize(w,h); this.fxaa.uniforms.resolution.value.set(1/(w*pr),1/(h*pr)); } };
+  resize(){ if(!this.composer) return; this.setRes(renderer.getPixelRatio()); } }; // o composer já redimensiona o SSAO na resolução certa (antes ele voltava pra resolução baixa)
 window.FX=FX;
 { let lv=''; try{ lv=localStorage.getItem('ceu_gfx')||''; }catch(e){} if(!['alto','medio','baixo'].includes(lv)) lv=TOUCH?'medio':'alto'; FX.build(lv); }
 requestAnimationFrame(frame);
@@ -2238,7 +2255,7 @@ $('#room-join').addEventListener('click',()=>{ const c=($('#room-code').value||'
 $('#room-link').addEventListener('click',async()=>{ const u=$('#room-link').dataset.url||''; try{ await navigator.clipboard.writeText(u); $('#room-link').textContent='LINK COPIADO'; }catch(e){ $('#room-code').value=u; $('#room-code').select(); $('#room-link').textContent='COPIE O LINK'; } setTimeout(()=>$('#room-link').textContent='COPIAR LINK DA SALA',2200); });
 $('#play').addEventListener('click',()=>{
   $('#menu').hidden=true; $('#hud').hidden=false; running=true; Sx.init();
-  const had=loadProg(); rollMissions();
+  const had=loadProg(); rollMissions(); setTimeout(()=>boostAniso(scene),1500);
   if(!had) player.inv=[{d:player.design,s:'pipa'},{d:player.design,s:'pipa'},{d:player.design,s:'pipa'}];
   else if(!player.inv.length) player.inv=[{d:player.design,s:'pipa'}]; // nunca começa sem nenhuma pipa
   netTrackSoon();
