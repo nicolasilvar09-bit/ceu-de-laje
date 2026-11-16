@@ -293,7 +293,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <div class="shop-card" role="dialog" aria-label="Loja de pipas">
       <div class="shop-head"><h2>LOJA DA ESQUINA</h2><b id="shop-money">R$ 0</b><button id="shop-close" aria-label="Fechar loja">✕</button></div>
       <div class="shop-body">
-        <div class="shop-prev"><canvas id="shop-canvas" width="220" height="220"></canvas><div id="shop-sel">Pipa Tricolor</div><button id="shop-buy">COMPRAR · R$ 8</button><p id="shop-msg"></p></div>
+        <div class="shop-prev"><canvas id="shop-canvas" width="220" height="220"></canvas><div id="shop-sel">Pipa Tricolor</div><small id="shop-info" style="text-align:center;font-size:12px;line-height:1.3;color:var(--linha)"></small><button id="shop-buy">COMPRAR · R$ 8</button><p id="shop-msg"></p></div>
         <div class="shop-cols">
           <div class="lbl2">Formato</div><div id="shop-shapes" class="shop-row"></div>
           <div class="lbl2">Estampa</div><div id="shop-designs" class="shop-grid"></div>
@@ -847,9 +847,14 @@ const clouds=[];
 
 /* ---------------- pipas: desenhos ---------------- */
 const SHAPES={
-  pipa:{name:'Pipa',price:8,pts:[[0,1],[0.78,0.28],[0.56,-0.5],[0,-0.92],[-0.56,-0.5],[-0.78,0.28]],tail:-0.92,spine:[1,-0.92],arc:[[-0.78,0.28],[0,0.62],[0.78,0.28]]},
-  raia:{name:'Raia',price:10,pts:[[0,1],[0.72,0.12],[0,-0.95],[-0.72,0.12]],tail:-0.95,spine:[1,-0.95],arc:[[-0.72,0.12],[0,0.3],[0.72,0.12]]},
-  bandeira:{name:'Bandeira',price:14,pts:[[-0.74,0.86],[0.74,0.86],[0.74,-0.12],[0,-0.95],[-0.74,-0.12]],tail:-0.95,spine:[0.86,-0.95],arc:[[-0.74,0.86],[0,0.98],[0.74,0.86]]}};
+  pipa:{name:'Pipa',price:8,spd:1,turn:1,stab:1,hp:1,info:'Equilibrada: faz tudo bem.',pts:[[0,1],[0.78,0.28],[0.56,-0.5],[0,-0.92],[-0.56,-0.5],[-0.78,0.28]],tail:-0.92,spine:[1,-0.92],arc:[[-0.78,0.28],[0,0.62],[0.78,0.28]]},
+  raia:{name:'Raia',price:10,spd:1.06,turn:1.12,stab:0.92,hp:0.95,info:'Vira rápido e embica fácil. Balança um pouco parada.',pts:[[0,1],[0.72,0.12],[0,-0.95],[-0.72,0.12]],tail:-0.95,spine:[1,-0.95],arc:[[-0.72,0.12],[0,0.3],[0.72,0.12]]},
+  bandeira:{name:'Bandeira',price:14,spd:0.94,turn:0.9,stab:1.25,hp:1.1,info:'Firme no céu e aguenta mais cruzo. Mais lenta pra virar.',pts:[[-0.74,0.86],[0.74,0.86],[0.74,-0.12],[0,-0.95],[-0.74,-0.12]],tail:-0.95,spine:[0.86,-0.95],arc:[[-0.74,0.86],[0,0.98],[0.74,0.86]]}};
+Object.assign(SHAPES,{
+  capucheta:{name:'Capucheta',price:5,spd:1.12,turn:1.3,stab:0.7,hp:0.8,nostick:true,info:'Papel dobrado, sem vareta: barata e ligeira, mas instável e frágil.',pts:[[-0.82,0.78],[0.82,0.78],[0,-0.92]],tail:-0.92,spine:[0.78,-0.92],arc:[[-0.82,0.78],[0,0.82],[0.82,0.78]]},
+  peixinho:{name:'Peixinho',price:12,spd:1.22,turn:1.12,stab:0.85,hp:0.92,info:'Fininho e veloz: a mais rápida no puxão.',pts:[[0,1],[0.45,0.45],[0.38,-0.4],[0,-0.95],[-0.38,-0.4],[-0.45,0.45]],tail:-0.95,spine:[1,-0.95],arc:[[-0.45,0.45],[0,0.7],[0.45,0.45]]},
+  estrela:{name:'Estrela',price:18,spd:0.95,turn:0.95,stab:1.2,hp:1.08,info:'Bonita e estável, boa pra segurar posição no alto.',pts:[[0,0.95],[-0.247,0.34],[-0.904,0.294],[-0.399,-0.13],[-0.558,-0.769],[0,-0.42],[0.558,-0.769],[0.399,-0.13],[0.904,0.294],[0.247,0.34]],tail:-0.42,spine:[0.95,-0.42],arc:[[-0.9,0.29],[0,0.5],[0.9,0.29]]},
+  maranhao:{name:'Maranhão',price:22,spd:0.9,turn:0.88,stab:1.35,hp:1.2,info:'Grandona de 8 lados: a mais firme e a que mais aguenta cruzo.',pts:[[0.85,0.352],[0.352,0.85],[-0.352,0.85],[-0.85,0.352],[-0.85,-0.352],[-0.352,-0.85],[0.352,-0.85],[0.85,-0.352]],tail:-0.85,spine:[0.85,-0.85],arc:[[-0.85,0.35],[0,0.6],[0.85,0.35]]}});
 const SHAPE_KEYS=Object.keys(SHAPES);
 const SHAPE=SHAPES.pipa.pts;
 const PX=(s,x,y)=>[(x+1)/2*s,(1-y)/2*s];
@@ -864,11 +869,21 @@ const DESIGNS=[
   {name:'Raio',tail:0xffd23f,draw(g,s){ g.fillStyle='#2a6fdb'; g.fillRect(0,0,s,s); poly(g,s,[[0.18,0.85],[-0.32,0.02],[0.02,0.02],[-0.18,-0.8],[0.36,0.12],[0.04,0.12],[0.3,0.85]],'#ffd23f'); }},
   {name:'Meia-lua',tail:0xe8412f,draw(g,s){ g.fillStyle='#fff'; g.fillRect(0,0,s,s); g.fillStyle='#e8412f'; g.fillRect(s/2,0,s/2,s); g.fillStyle='#e8412f'; g.beginPath(); g.arc(s/2,s*0.3,s*0.16,Math.PI/2,Math.PI*1.5); g.fill(); g.fillStyle='#fff'; g.beginPath(); g.arc(s/2,s*0.3,s*0.16,-Math.PI/2,Math.PI/2); g.fill(); }},
 ];
+DESIGNS.push(
+  {name:'Arco-íris',tail:0xffffff,draw(g,s){ ['#e8412f','#ff7a1a','#ffd23f','#2fa84f','#2a6fdb','#8e44ad'].forEach((c,i)=>{ g.fillStyle=c; g.fillRect(0,i*s/6,s,s/6+1); }); }},
+  {name:'Sol',tail:0xff7a1a,draw(g,s){ g.fillStyle='#2a6fdb'; g.fillRect(0,0,s,s); g.fillStyle='#ffd23f'; g.save(); g.translate(s/2,s*0.46); for(let i=0;i<12;i++){ g.rotate(Math.PI/6); g.beginPath(); g.moveTo(-s*0.04,s*0.2); g.lineTo(0,s*0.36); g.lineTo(s*0.04,s*0.2); g.fill(); } g.beginPath(); g.arc(0,0,s*0.18,0,TAU); g.fill(); g.restore(); }},
+  {name:'Coração',tail:0xe8412f,draw(g,s){ g.fillStyle='#f6f1e6'; g.fillRect(0,0,s,s); g.fillStyle='#e8412f'; g.beginPath(); const x=s/2,y=s*0.36,w=s*0.26; g.moveTo(x,y+w*0.35); g.bezierCurveTo(x,y-w*0.2,x-w*1.2,y-w*0.3,x-w*1.1,y+w*0.5); g.bezierCurveTo(x-w,y+w*1.1,x-w*0.2,y+w*1.4,x,y+w*1.9); g.bezierCurveTo(x+w*0.2,y+w*1.4,x+w,y+w*1.1,x+w*1.1,y+w*0.5); g.bezierCurveTo(x+w*1.2,y-w*0.3,x,y-w*0.2,x,y+w*0.35); g.fill(); }},
+  {name:'Bolinhas',tail:0xffffff,draw(g,s){ g.fillStyle='#d6332a'; g.fillRect(0,0,s,s); g.fillStyle='#fff'; const st=s/5; for(let j=0;j<6;j++) for(let i=0;i<6;i++){ g.beginPath(); g.arc(i*st+(j%2?st/2:0),j*st,st*0.2,0,TAU); g.fill(); } }},
+  {name:'Diagonal',tail:0x16181d,draw(g,s){ g.fillStyle='#ffd23f'; g.fillRect(0,0,s,s); g.fillStyle='#16181d'; g.beginPath(); g.moveTo(0,0); g.lineTo(s,0); g.lineTo(0,s); g.closePath(); g.fill(); }},
+  {name:'Chamas',tail:0xff7a1a,draw(g,s){ g.fillStyle='#16181d'; g.fillRect(0,0,s,s); for(const [c,h] of [['#e8412f',0.62],['#ff7a1a',0.5],['#ffd23f',0.36]]){ g.fillStyle=c; g.beginPath(); g.moveTo(0,s); for(let i=0;i<=8;i++){ const x=i*s/8; g.lineTo(x-s/16,s*(1-h)+(i%2?s*0.1:0)); g.lineTo(x,s*(1-h)+(i%2?0:s*0.12)); } g.lineTo(s,s); g.closePath(); g.fill(); } }},
+  {name:'Caveira',tail:0xffffff,draw(g,s){ g.fillStyle='#16181d'; g.fillRect(0,0,s,s); g.fillStyle='#f4f1ea'; g.beginPath(); g.arc(s/2,s*0.4,s*0.2,0,TAU); g.fill(); g.fillRect(s*0.4,s*0.52,s*0.2,s*0.12); g.fillStyle='#16181d'; g.beginPath(); g.arc(s*0.43,s*0.4,s*0.055,0,TAU); g.arc(s*0.57,s*0.4,s*0.055,0,TAU); g.fill(); g.fillRect(s*0.47,s*0.55,s*0.02,s*0.09); g.fillRect(s*0.51,s*0.55,s*0.02,s*0.09); }},
+  {name:'Mosaico',tail:0x2fa84f,draw(g,s){ const C=['#e8412f','#ffd23f','#2a6fdb','#2fa84f','#f6f1e6','#ff7a1a','#8e44ad'], n=5, c=s/n; let h=9; for(let j=0;j<n;j++) for(let i=0;i<n;i++) for(let t=0;t<2;t++){ h=(h*1103515245+12345)&0x7fffffff; g.fillStyle=C[h%C.length]; g.beginPath(); if(t){ g.moveTo(i*c,j*c); g.lineTo(i*c+c,j*c); g.lineTo(i*c,j*c+c); } else { g.moveTo(i*c+c,j*c); g.lineTo(i*c+c,j*c+c); g.lineTo(i*c,j*c+c); } g.closePath(); g.fill(); } }});
 function drawKite(g,s,d,shape='pipa'){ const SH=SHAPES[shape], SHAPE=SH.pts;
   g.clearRect(0,0,s,s); g.save(); g.beginPath(); SHAPE.forEach(([x,y],i)=>{const [X,Y]=PX(s,x,y); i?g.lineTo(X,Y):g.moveTo(X,Y);}); g.closePath(); g.clip();
   d.draw(g,s); g.restore();
   g.strokeStyle='rgba(20,20,20,.85)'; g.lineWidth=Math.max(1.5,s/90);
   g.beginPath(); SHAPE.forEach(([x,y],i)=>{const [X,Y]=PX(s,x,y); i?g.lineTo(X,Y):g.moveTo(X,Y);}); g.closePath(); g.stroke();
+  if(SH.nostick){ g.strokeStyle='rgba(0,0,0,.18)'; g.lineWidth=Math.max(1,s/100); g.beginPath(); g.moveTo(...PX(s,0,SH.spine[0])); g.lineTo(...PX(s,0,SH.spine[1])); g.stroke(); return; }
   g.strokeStyle='rgba(90,60,30,.9)'; g.lineWidth=Math.max(1,s/120);
   g.beginPath(); g.moveTo(...PX(s,0,SH.spine[0])); g.lineTo(...PX(s,0,SH.spine[1])); g.stroke();
   g.beginPath(); g.moveTo(...PX(s,...SH.arc[0])); g.quadraticCurveTo(...PX(s,...SH.arc[1]),...PX(s,...SH.arc[2])); g.stroke();
@@ -1124,7 +1139,7 @@ function updateRibbon(m,pts,n){ const out=m.geometry.attributes.position.array, 
 const kites=[];
 const T1=V(),T2=V(),T3=V(),T4=V(),T5=V(),T6=V(),T7=V();
 class Kite{
-  constructor(design,owner,shape='pipa'){ this.shape=shape; this.maxL=MAXL;
+  constructor(design,owner,shape='pipa'){ if(!SHAPES[shape]) shape='pipa'; this.shape=shape; this.SP=SHAPES[shape]; this.maxL=MAXL;
     this.id=++KID; this.design=design; this.owner=owner; this.ownerName=owner?owner.name:'?';
     this.state='flying'; this.L=6; this.u=R(-.2,.2); this.v=0.8; this.heading=0; this.spinDir=rnd()<.5?1:-1;
     this.hp=100; this.hpMax=100; this.regen=6; this.tier=0; this.sinceHit=9; this.tailCut=false; this.fast=false; this.mode='idle'; this.hand=V(); this.pos=V(); this.sag=0; this.vel=V(); this.trail=0; this.landT=0;
@@ -1135,7 +1150,7 @@ class Kite{
     this.sail=new THREE.Mesh(sg,new THREE.MeshLambertMaterial({map:kt,emissiveMap:kt,emissive:0xffffff,emissiveIntensity:0.1,side:THREE.DoubleSide,alphaTest:0.5}));
     this.sail.castShadow=false; this.group.add(this.sail); this.group.userData.noAO=true; this.flapT=Math.random()*10;
     // vareta (espinha) e arco de bambu, acompanhando a curvatura do papel
-    { const SH=SHAPES[shape], bow=x=>-SAIL_BOW*x*x+0.012;
+    if(!SHAPES[shape].nostick){ const SH=SHAPES[shape], bow=x=>-SAIL_BOW*x*x+0.012;
       const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,SH.spine[0]-SH.spine[1],5),STICK_MAT); sp.position.set(0,(SH.spine[0]+SH.spine[1])/2,0.012); this.group.add(sp);
       const [a,b,c]=SH.arc; const cv=new THREE.QuadraticBezierCurve3(new THREE.Vector3(a[0],a[1],bow(a[0])),new THREE.Vector3(b[0],b[1],bow(0)+0.05),new THREE.Vector3(c[0],c[1],bow(c[0])));
       this.group.add(new THREE.Mesh(new THREE.TubeGeometry(cv,12,0.012,4,false),STICK_MAT)); }
@@ -1173,16 +1188,16 @@ class Kite{
       let m='idle'; if(inp.pull)m='pull'; else if(inp.release)m=this.fast?'fastrel':'release'; else if(inp.reel)m='reel'; this.mode=m;
       if(this.contact) this.sinceHit=0; else { this.sinceHit+=dt; if(this.sinceHit>2.5) this.hp=Math.min(this.hpMax,this.hp+this.regen*dt*(this.owner&&this.owner.embalado>now?1.6:1)); }
       if(this.tailCut){ this.heading+=Math.sin(now*6.3+this.id)*2.4*dt; this.v-=Math.min(0.08,2/Math.max(this.L,4))*dt; }
-      if(inp.steer) this.heading+=inp.steer*2.8*dt;
+      if(inp.steer) this.heading+=inp.steer*2.8*this.SP.turn*dt;
       // comando: o joystick aponta o bico da pipa (direção na tela = direção no céu)
-      const aiming=inp.aim!=null; if(aiming) this.heading+=clamp(angDiff(this.heading,inp.aim),-5.5*dt,5.5*dt);
+      const aiming=inp.aim!=null; if(aiming) this.heading+=clamp(angDiff(this.heading,inp.aim),-5.5*this.SP.turn*dt,5.5*this.SP.turn*dt);
       const L=Math.max(this.L,4), ws=wind.str;
       if(inp.pull && !this._pp){ if(now-(this._lastPull||-9)<0.35){ this.dib=0.45; if(this.owner===player) Sx.click(1); } this._lastPull=now; }
       this._pp=!!inp.pull; if(this.dib>0) this.dib-=dt;
-      if(m==='pull'){ const sp=Math.min(1.5,17*ws/L)*(this.dib>0?2.3:1); this.v+=Math.cos(this.heading)*sp*dt; this.u+=Math.sin(this.heading)*sp*dt/Math.max(Math.cos(this.v),.35); this.L=Math.max(3,this.L-2.0*dt); }
+      if(m==='pull'){ const sp=Math.min(1.5*this.SP.spd,17*ws*this.SP.spd/L)*(this.dib>0?2.3:1); this.v+=Math.cos(this.heading)*sp*dt; this.u+=Math.sin(this.heading)*sp*dt/Math.max(Math.cos(this.v),.35); this.L=Math.max(3,this.L-2.0*dt); }
       else if(m==='release'||m==='fastrel'){ const dl=Math.max(0,Math.min((m==='fastrel'?34:15)*dt,this.maxL-this.L)); this.L+=dl; this.lineMoved+=dl; if(!aiming) this.heading+=this.spinDir*3.6*dt; this.v-=Math.min(0.3,4/L)*dt; this.u*=1-Math.min(0.3,3/L)*dt; }
       else if(m==='reel'){ const dl=Math.min(20*dt,this.L-2.5); this.L-=dl; this.lineMoved+=dl; if(!aiming) this.heading+=this.spinDir*1.0*dt; this.v=lerp(this.v,0.9,0.6*dt); }
-      else { if(!aiming) this.heading+=this.spinDir*1.2*dt+Math.sin(now*2.1+this.id)*0.9*dt; /* abana parada */ this.v=lerp(this.v,0.95,Math.min(0.35,6*ws/L)*dt); this.u*=1-Math.min(0.1,1.5/L)*dt; }
+      else { if(!aiming) this.heading+=this.spinDir*1.2*dt+Math.sin(now*2.1+this.id)*0.9/this.SP.stab*dt; /* abana parada (pipa firme abana menos) */ this.v=lerp(this.v,0.95,Math.min(0.35,6*ws/L)*dt); this.u*=1-Math.min(0.1,1.5/L)*dt; }
       if(Math.abs(this.u)>1.2){ this.v-=Math.min(0.5,6/L)*dt; this.u=clamp(this.u,-1.32,1.32); }
       if(this.v>1.42) this.v=1.42;
       this.heading=angDiff(0,this.heading);
@@ -1353,7 +1368,7 @@ function progRender(){ rollMissions(); const need=needXP(PROG.lvl);
 const LINES=[{id:'l10',name:'Linha 10',tier:0,q:1.0,hp:100,regen:6,max:220,price:0,info:'Fio comum. Corta devagar e cansa rápido.'},
              {id:'l24',name:'Linha 24',tier:1,q:1.2,hp:130,regen:9,max:300,price:150,info:'Mais grossa: corta mais, aguenta mais cruzo e recupera mais rápido.'},
              {id:'pro',name:'Linha Pro',tier:2,q:1.45,hp:165,regen:13,max:380,price:400,info:'Carretel grande, corte forte e recuperação rápida.'}];
-function applyLine(k,L){ k.quality=L.q; k.maxL=L.max; k.hpMax=L.hp; k.hp=Math.min(k.hp,L.hp); if(k.hp<=0||k.hp===100&&L.hp!==100) k.hp=L.hp; k.regen=L.regen; k.tier=L.tier; }
+function applyLine(k,L){ k.quality=L.q; k.maxL=L.max; k.hpMax=Math.round(L.hp*((k.SP&&k.SP.hp)||1)); k.hp=Math.min(k.hp,k.hpMax); if(k.hp<=0||k.hp===100&&k.hpMax!==100) k.hp=k.hpMax; k.regen=L.regen; k.tier=L.tier; }
 player.line=LINES[0]; player.combo=0; player.embalado=0;
 player.person=makePerson(0xf4f4f4,{capColor:0xe8412f,pants:0x2b3a55,skin:0x8d5a3b,av:'Male_Adult_04'});
 player.person.g.position.copy(player.pos);
@@ -1767,7 +1782,7 @@ const shop={shape:'pipa',design:DESIGNS[0]};
 const shopEl=$('#shop'), shopCanvas=$('#shop-canvas');
 function shopRender(){
   drawKite(shopCanvas.getContext('2d'),220,shop.design,shop.shape);
-  const price=SHAPES[shop.shape].price; $('#shop-sel').textContent=SHAPES[shop.shape].name+' '+shop.design.name;
+  const price=SHAPES[shop.shape].price; $('#shop-sel').textContent=SHAPES[shop.shape].name+' '+shop.design.name; $('#shop-info').textContent=SHAPES[shop.shape].info||'';
   const b=$('#shop-buy'); b.textContent='COMPRAR · R$ '+price; b.disabled=player.money<price; $('#shop-money').textContent='R$ '+player.money;
   document.querySelectorAll('#shop-shapes button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===shop.shape)));
   document.querySelectorAll('#shop-designs button').forEach((x,i)=>{ x.setAttribute('aria-pressed',String(DESIGNS[i]===shop.design)); drawKite(x.firstChild.getContext('2d'),96,DESIGNS[i],shop.shape); });
