@@ -36,3 +36,9 @@ Cruzo com linhas que se encostam no ponto real, força de corte por linha (10, 2
 - `convert.html`: converte os originais pra web (abrir via `serve.js`).
 
 Créditos e licenças em [CREDITOS.md](CREDITOS.md).
+
+## Progresso
+- Toque no chip **NÍVEL** (ou tecla **M**) para ver nível, missões do dia e o placar da sala.
+- XP vem de relo, aparada (no ar vale mais), corte de rabiola, cruzo no nó, VS e tempo de pipa no ar. Cada nível paga prêmio em grana.
+- Três missões por dia, iguais para todo mundo naquele dia.
+- Grana, pipas, linhas compradas, nível e missões ficam salvos no aparelho (navegador).
