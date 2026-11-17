@@ -250,6 +250,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <button id="b-shop" class="shopbtn">LOJA</button>
     <button id="b-cam" class="shopbtn camb">CÂMERA<small>V</small></button>
     <button id="b-vara" class="shopbtn camb">VARA<small>B</small></button>
+    <button id="b-menu" class="shopbtn camb" aria-label="Voltar ao menu">MENU<small>Esc</small></button>
   </div>
   <canvas id="radar" width="264" height="264"></canvas>
   <ul id="feed"></ul>
@@ -327,6 +328,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
       <button type="button" class="rbtn gfx" data-g="alto">ALTO</button><button type="button" class="rbtn gfx" data-g="medio">MÉDIO</button><button type="button" class="rbtn gfx" data-g="baixo">BAIXO</button>
       <span id="gfx-info"></span></div>
     <div class="netrow roomrow"><span class="lbl">Sala</span>
+      <button type="button" id="room-solo" class="rbtn">SOZINHO</button>
       <button type="button" id="room-open" class="rbtn">PRAÇA ABERTA</button>
       <button type="button" id="room-new" class="rbtn hot">CRIAR SALA</button>
       <input id="room-code" maxlength="60" autocomplete="off" placeholder="Código" aria-label="Código da sala">
@@ -2329,8 +2331,14 @@ $('#nick').value=NET.name;
 $('#nick').addEventListener('input',e=>{ NET.name=cleanNick(e.target.value); e.target.value=NET.name; try{ localStorage.setItem('ceu_nick',NET.name); }catch(_){}
   clearTimeout(NET.nickT); NET.nickT=setTimeout(()=>{ if(NET.ch&&NET.on){ try{ NET.ch.track({n:NET.name,t:NET.joinT,lv:PROG.lvl,r:player.relos}); }catch(e){} } },600); });
 function netStatus(t){ NET.status=t; const el=$('#net-status'); if(el) el.textContent='Online: '+t; }
+/* jogar sozinho: sai do online, sem ninguém na sala; os bots rodam no próprio aparelho */
+function netStop(){ TEAM.us=0; TEAM.bots=0;
+  try{ if(NET.ch){ try{ NET.ch.send({type:'broadcast',event:'bye',payload:{id:NET.id}}); }catch(e){} if(NET.sb) NET.sb.removeChannel(NET.ch); } }catch(e){}
+  NET.ch=null; NET.on=false; NET.solo=true; NET.room=''; for(const id of [...NET.peers.keys()]) netDrop(id,true); NET.members=[]; NET.host=true; NET.botsLocal=true; setBotControl(true);
+  try{ localStorage.setItem('ceu_solo','1'); }catch(_){}
+  netStatus('desligado · jogando sozinho'); const el=$('#room-info'); if(el) el.textContent='Você está jogando sozinho: sem online, só você e os bots'; const lk=$('#room-link'); if(lk) lk.hidden=true; }
 function roomName(){ return NET.room?'sala '+NET.room:'praça aberta'; }
-function netStart(room){ TEAM.us=0; TEAM.bots=0;
+function netStart(room){ TEAM.us=0; TEAM.bots=0; NET.solo=false; try{ localStorage.removeItem('ceu_solo'); }catch(_){}
   if(room!==undefined) NET.room=String(room||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   if(!window.supabase||!window.supabase.createClient){ NET.on=false; setBotControl(true); netStatus('indisponível aqui (jogue pelo link do GitHub)'); return; }
   try{
@@ -2459,19 +2467,27 @@ function netUpdate(dt){
     if(k){ k.pos.lerp(p.kt.pos,a); k.hand.lerp(p.kt.hand,a); if(personHand(p.person,T5)) k.hand.lerp(T5,0.5); k.visual(dt); }
     animPerson(p.person,p.veh?0:Math.min(p.spd,7),dt,!!k,k&&k.mode==='pull',k&&k.pos);
   }
-  setText($('#st-online'),'on',NET.on?String(NET.peers.size+1):'OFF'); setText($('#chip-online').firstChild,'rn',NET.room?'Sala '+NET.room:'Praça');
+  setText($('#st-online'),'on',NET.on?String(NET.peers.size+1):'OFF'); setText($('#chip-online').firstChild,'rn',NET.solo?'Sozinho':NET.room?'Sala '+NET.room:'Praça');
 }
 function netLabels(){ for(const p of NET.peers.values()){ if(!p.label){ p.label=document.createElement('div'); p.label.className='klabel peer'; labelsEl.appendChild(p.label); }
   T5.copy(p.cur); T5.y+=2.3; const [x,y,z]=project(T5); const vis=z<1&&x>0&&x<innerWidth&&y>0&&y<innerHeight&&camera.position.distanceTo(p.cur)<120; p.label.hidden=!vis;
   if(vis){ p.label.style.transform=`translate(${x}px,${y}px) translate(-50%,-100%)`; if(p.label.textContent!==p.name) p.label.textContent=p.name; } } }
-{ let sala=''; try{ sala=(new URLSearchParams(location.search).get('sala')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); }catch(e){} netStart(sala); }
+{ let sala='', solo=false; try{ sala=(new URLSearchParams(location.search).get('sala')||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); solo=!sala&&localStorage.getItem('ceu_solo')==='1'; }catch(e){} if(solo) netStop(); else netStart(sala); }
 window.__netReady=true;
 const newRoomCode=()=>{ const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; };
 $('#room-new').addEventListener('click',()=>{ netStart(newRoomCode()); });
 $('#room-open').addEventListener('click',()=>{ netStart(''); });
+$('#room-solo').addEventListener('click',()=>{ netStop(); });
 $('#room-join').addEventListener('click',()=>{ const c=($('#room-code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); if(c.length>=3) netStart(c); else netStatus('digite o código da sala (4 letras)'); });
 $('#room-link').addEventListener('click',async()=>{ const u=$('#room-link').dataset.url||''; try{ await navigator.clipboard.writeText(u); $('#room-link').textContent='LINK COPIADO'; }catch(e){ $('#room-code').value=u; $('#room-code').select(); $('#room-link').textContent='COPIE O LINK'; } setTimeout(()=>$('#room-link').textContent='COPIAR LINK DA SALA',2200); });
+let started=false;
+function openMenu(){ if(!running) return; try{ saveProg(); }catch(e){} running=false; keys.clear(); joy.x=0; joy.y=0; joy.id=null; for(const b in btn) btn[b]=false; mouse.pull=false; mouse.release=false;
+  shopEl.hidden=true; const pg=$('#prog'); if(pg) pg.hidden=true; $('#hud').hidden=true; $('#menu').hidden=false; playBtn.textContent='VOLTAR AO JOGO'; const card=document.querySelector('#menu .card'); if(card) card.scrollTop=0; $('#menu').scrollTop=0; }
+$('#b-menu').addEventListener('click',openMenu);
+addEventListener('keydown',e=>{ if(e.code!=='Escape'||e.repeat||!running) return; if(!shopEl.hidden){ shopEl.hidden=true; return; } const pg=$('#prog'); if(pg&&!pg.hidden){ pg.hidden=true; return; } openMenu(); });
 $('#play').addEventListener('click',()=>{
+  if(started){ $('#menu').hidden=true; $('#hud').hidden=false; running=true; last=performance.now(); toast('DE VOLTA AO JOGO',NET.solo?'Jogando sozinho':'Você está na '+roomName()); return; }
+  started=true;
   $('#menu').hidden=true; $('#hud').hidden=false; running=true; Sx.init();
   const had=loadProg(); rollMissions(); EVT.next=now+45; setTimeout(()=>boostAniso(scene),1500);
   if(!had) player.inv=[{d:player.design,s:'pipa'},{d:player.design,s:'pipa'},{d:player.design,s:'pipa'}];
