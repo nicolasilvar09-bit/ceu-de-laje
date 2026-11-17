@@ -15,7 +15,7 @@ const out = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f6fc7">
+<meta name="theme-color" content="#173b4b">
 <meta name="description" content="Céu de Laje: jogo de pipa em mundo aberto. Solte sua pipa, cruze linhas, dispute o céu e explore a cidade.">
 <meta name="application-name" content="Céu de Laje">
 <meta name="apple-mobile-web-app-capable" content="yes">

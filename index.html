@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f6fc7">
+<meta name="theme-color" content="#173b4b">
 <meta name="description" content="Céu de Laje: jogo de pipa em mundo aberto. Solte sua pipa, cruze linhas, dispute o céu e explore a cidade.">
 <meta name="application-name" content="Céu de Laje">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,14 +19,15 @@
 </head>
 <body>
 <title>Céu de Laje</title>
+<meta name="description" content="Céu de Laje — mundo aberto de pipas, cultura de rua e bairros brasileiros.">
 <script>if(!document.querySelector('meta[name="viewport"]')){const m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1,viewport-fit=cover';document.head.appendChild(m);}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap">
 <style>
 /* Layout: jogo em tela cheia; HUD nas bordas respeitando áreas seguras; menu sobre o céu */
 :root{
-  --ink:#14202e; --paper:#fff8e8; --pipa:#ffc21a; --relo:#e8412f; --ceu:#3d8fd6; --linha:#1f6f8b;
-  --glass:rgba(20,32,46,.62); --glass2:rgba(255,248,232,.92);
+  --ink:#172632; --paper:#fff6e8; --pipa:#ffd166; --relo:#e45d48; --ceu:#397f9f; --linha:#236b70;
+  --glass:rgba(17,31,42,.70); --glass2:rgba(255,247,232,.95);
   --display:'Bungee','Impact',system-ui,sans-serif;
   --body:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;
   color-scheme: light;
@@ -185,19 +186,19 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 #menu{position:fixed;inset:0;overflow:auto;display:flex;align-items:center;justify-content:center;
   padding-block:calc(16px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  background:linear-gradient(180deg,rgba(61,143,214,.55),rgba(243,225,192,.35))}
-.card{background:var(--glass2);border-radius:18px;max-width:640px;width:100%;padding:22px 22px 18px;box-shadow:0 18px 50px rgba(20,32,46,.35);
-  display:flex;flex-direction:column;gap:14px}
+  background:radial-gradient(ellipse at 78% 18%,rgba(255,209,102,.28),transparent 36%),linear-gradient(145deg,rgba(20,54,69,.70),rgba(48,111,125,.42) 48%,rgba(225,125,91,.30)),linear-gradient(180deg,rgba(27,73,98,.42),rgba(243,225,192,.28));backdrop-filter:saturate(1.12)}
+.card{background:linear-gradient(145deg,rgba(255,250,240,.97),rgba(255,241,219,.94));border:1px solid rgba(255,255,255,.78);border-radius:22px;max-width:660px;width:100%;padding:24px 24px 20px;box-shadow:0 22px 64px rgba(12,29,39,.42),0 2px 0 rgba(255,255,255,.35) inset;
+  display:flex;flex-direction:column;gap:14px;backdrop-filter:blur(14px)}
 .card h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(38px,9vw,64px);line-height:.95;color:var(--ink);text-wrap:balance}
-.card h1 em{font-style:normal;color:var(--relo)}
-.tag{margin:0;font-size:15px;line-height:1.45;max-width:60ch}
-.lbl{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--linha)}
+.card h1 em{font-style:normal;color:var(--relo);text-shadow:0 2px 0 rgba(228,93,72,.12)}
+.tag{margin:0;font-size:15px;line-height:1.5;max-width:60ch;color:#43515a}
+.lbl{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--linha)}
 #designs{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .netrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #nick{font-family:var(--body);font-size:15px;font-weight:600;padding:8px 10px;border-radius:10px;border:2px solid #d9d2c3;background:#fff;color:var(--ink);width:170px}
 #nick:focus-visible{outline:3px solid var(--pipa);outline-offset:1px}
 .rbtn{border:none;border-radius:9px;background:#e9e4d8;color:var(--ink);font-size:12px;padding:8px 10px}
-.rbtn.hot{background:var(--relo);color:#fff}
+.rbtn.hot{background:linear-gradient(135deg,#e45d48,#bd493b);color:#fff;box-shadow:0 3px 10px rgba(189,73,59,.18)}
 #room-code{font-family:var(--body);font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:7px 9px;border-radius:9px;border:2px solid #d9d2c3;width:96px;background:#fff;color:var(--ink)}
 .rbtn.gfx[aria-pressed="true"]{background:var(--ink);color:#fff}
 #gfx-info{font-size:11px;opacity:.75}
@@ -216,7 +217,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cols div{font-size:12.5px;line-height:1.5;min-width:0}
 .cols b{display:block;margin-bottom:2px}
-#play{align-self:stretch;border:none;border-radius:14px;background:var(--relo);color:#fff;font-size:24px;padding:14px;box-shadow:0 5px 0 #9b2416}
+#play{align-self:stretch;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:linear-gradient(135deg,#ed6a50,#c94c3e);color:#fff;font-size:24px;padding:14px;letter-spacing:.025em;box-shadow:0 5px 0 #963b32,0 10px 24px rgba(201,76,62,.22);transition:filter .18s,transform .18s}#play:hover{filter:brightness(1.06)}
 #play:active{transform:translateY(3px);box-shadow:0 2px 0 #9b2416}
 .foot{font-size:11px;opacity:.7;margin:0}
 @media (max-width:560px){ #designs{grid-template-columns:repeat(4,1fr)} .cols{grid-template-columns:1fr} }
@@ -334,7 +335,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 <div id="rotate">GIRE O CELULAR<small>O Céu de Laje é jogado com o celular deitado.</small></div>
 <div id="menu">
   <div class="card">
-    <div class="lbl">Protótipo · pipa em mundo aberto</div>
+    <div class="lbl">Mundo aberto · cultura de rua</div>
     <h1>CÉU DE <em>LAJE</em></h1>
     <p class="tag">Sobe a pipa da laje, cruza com a linha dos outros e puxa pra relar. Pipa cortada cai devagar pela quebrada: corre pelos telhados e apara antes da molecada.</p>
     <div class="lbl">Escolha sua pipa</div>
@@ -412,7 +413,7 @@ renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.05;
 const LC=h=>new THREE.Color(h).convertSRGBToLinear();
 const scene=new THREE.Scene();
-scene.fog=new THREE.Fog(LC(0xc4d8e6),180,1100);
+scene.fog=new THREE.Fog(LC(0xc3cfce),190,1120);
 const TL=new THREE.TextureLoader();
 const MAXANI=renderer.capabilities.getMaxAnisotropy(), ANI=TOUCH?Math.min(8,MAXANI):MAXANI;
 function boostAniso(root){ root.traverse(o=>{ if(!o.material) return; for(const m of (Array.isArray(o.material)?o.material:[o.material])) for(const k of ['map','normalMap','emissiveMap','roughnessMap']){ const t=m[k]; if(t&&t.anisotropy<ANI){ t.anisotropy=ANI; t.needsUpdate=true; } } }); }
@@ -431,7 +432,7 @@ wind.update(0);
 
 /* ---------------- céu e luz ---------------- */
 const sky=new THREE.Mesh(new THREE.SphereGeometry(2000,32,16), new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
-  uniforms:{top:{value:new THREE.Color(0x2f80cf)},mid:{value:new THREE.Color(0x96c9ec)},bot:{value:new THREE.Color(0xf1dfbf)}},
+  uniforms:{top:{value:new THREE.Color(0x245b78)},mid:{value:new THREE.Color(0x91b8c0)},bot:{value:new THREE.Color(0xefc69a)}},
   vertexShader:'varying vec3 vP; void main(){ vP=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader:'uniform vec3 top,mid,bot; varying vec3 vP; void main(){ float h=vP.y; vec3 c=mix(mid,top,smoothstep(0.0,0.55,h)); c=mix(bot,c,smoothstep(-0.03,0.16,h)); gl_FragColor=vec4(c,1.0); }'}));
 scene.add(sky);
@@ -449,8 +450,8 @@ TL.load('assets/web/sky.jpg',t0=>{ let t=t0;
   t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding;
   scene.background=t; const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromEquirectangular(t).texture; pm.dispose();
   sky.visible=false; for(const c of clouds) c.visible=false; loading.sky=true; },undefined,()=>{ loading.sky=true; });
-scene.add(new THREE.HemisphereLight(0xcfe6ff,0x9a8668,0.68)); // luz do céu: o lado na sombra não fica preto
-const sun=new THREE.DirectionalLight(0xfff3dc,1.7);
+scene.add(new THREE.HemisphereLight(0xc8e2ed,0x78604d,0.78)); // assinatura de cor: céu azul-petróleo e rebote quente das lajes
+const sun=new THREE.DirectionalLight(0xffe3bd,1.82);
 sun.castShadow=true; sun.shadow.mapSize.set(TOUCH?1024:2048,TOUCH?1024:2048);
 const sc=sun.shadow.camera; sc.left=-70; sc.right=70; sc.top=70; sc.bottom=-70; sc.near=10; sc.far=400; sun.shadow.bias=-0.0006;
 scene.add(sun); scene.add(sun.target);
@@ -2212,7 +2213,7 @@ function gfxFail(e){ if(FX.level==='baixo'){ if(!gfxFail.once){ gfxFail.once=1; 
   try{ localStorage.setItem('ceu_gfx','baixo'); }catch(_){} try{ FX.build('baixo'); }catch(_){} window.__showErr&&__showErr('o gráfico '+'falhou ('+(e&&e.message||e)+'), troquei pra Baixo'); }
 /* ---------------- gráficos: Alto (oclusão + brilho + cor + suavização), Médio (brilho + cor + suavização), Baixo (direto) ---------------- */
 // cor de cinema: tonemap ACES, contraste, saturação, toque quente e vinheta, depois sRGB
-const GradeShader={uniforms:{tDiffuse:{value:null},exposure:{value:1.05},contrast:{value:1.05},saturation:{value:1.06},warm:{value:0.012},vignette:{value:0.26}},
+const GradeShader={uniforms:{tDiffuse:{value:null},exposure:{value:1.04},contrast:{value:1.08},saturation:{value:1.09},warm:{value:0.018},vignette:{value:0.20}},
   vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   // mesma curva ACES do three.js (a do modo Baixo), depois contraste/saturação leves, toque quente e vinheta
   fragmentShader:`uniform sampler2D tDiffuse; uniform float exposure,contrast,saturation,warm,vignette; varying vec2 vUv;

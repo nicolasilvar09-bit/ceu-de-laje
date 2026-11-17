@@ -60,3 +60,12 @@ npm start
 ```
 
 Abra `http://127.0.0.1:5178` para testar localmente. Para publicar no GitHub Pages, envie o `index.html` atualizado e a pasta `assets/`.
+
+
+## Atualização visual 1.2.0
+
+- Aplicada paleta visual de marca (azul-petróleo, concreto quente, coral e amarelo de pipa).
+- Refinado o menu inicial com camadas de cor, acabamento translúcido, borda e hierarquia tipográfica.
+- Ajustados céu procedural de fallback, neblina, luz hemisférica, luz solar e gradação cinematográfica.
+- Mantidos os níveis Alto/Médio/Baixo e os mecanismos de resolução adaptativa; não foram adicionadas etapas de pós-processamento.
+- O rótulo de protótipo foi substituído por uma apresentação de mundo aberto.

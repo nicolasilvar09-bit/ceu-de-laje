@@ -1,5 +1,9 @@
 # Céu de Laje
 
+## Direção visual 1.2.0
+
+A identidade visual combina proporções e cenários realistas com uma direção de arte própria inspirada na cultura urbana brasileira: paleta azul-petróleo, tons quentes de concreto e pôr do sol, acentos coral e amarelo de pipa. O tratamento de cor e a iluminação foram ajustados para reforçar essa assinatura sem adicionar efeitos pesados ao render.
+
 Jogo de pipa em mundo aberto, feito com Three.js para navegador de computador e celular. Solte a pipa da laje, cruze linhas, dispute o céu, explore o bairro, ande de bicicleta ou carro e participe das salas online.
 
 ## Requisitos e execução
