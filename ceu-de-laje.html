@@ -1445,7 +1445,8 @@ player.person.g.position.copy(player.pos);
 function playerHand(){ if(personHand(player.person,player.hand)) return player.hand; return player.hand.set(player.pos.x+Math.sin(player.face)*0.35,player.pos.y+2.05,player.pos.z+Math.cos(player.face)*0.35); }
 
 /* ---------------- adversários na laje ---------------- */
-const NAMES=['Vitinho','Kauã','Dudu','Lucão','Pedrinho','Caio','Rafa','Tiaguinho','Biel','Jow','Maicon','Davi','Nando','Guiga','Pablo','Russo'];
+const NAMES=['Vitinho','Kauã','Dudu','Lucão','Pedrinho','Caio','Rafa','Tiaguinho','Biel','Jow','Maicon','Davi','Nando','Guiga','Pablo','Russo',
+  'Kayky','Juninho','Thiaguinho','Gabriel','Wesley','Marcola','Bruninho','Cauã','Neguinho','Allan','Pirulito','Breno'];
 const flyers=[]; let vs=null;
 buildShop(); // depois das pipas e das pessoas, que a loja usa
 class Flyer{
@@ -1487,20 +1488,27 @@ class Flyer{
     animPerson(this.person,0,dt,!!k,k&&k.mode==='pull',k&&k.pos);
     if(k){ const a=1-Math.exp(-6*dt); if(this.kt){ k.pos.lerp(this.kt.pos,a); } if(personHand(this.person,this.hand)) k.hand.copy(this.hand); else k.hand.copy(this.hand); k.visual(dt); } }
   aimAt(p){ const r=T6.subVectors(p,this.hand); const d=r.dot(wind.D),q=r.dot(wind.P),hl=Math.hypot(d,q);
-    this.goal.u=clamp(Math.atan2(q,d),-1.15,1.15); this.goal.v=clamp(Math.atan2(r.y,hl),0.22,1.35); this.goal.L=clamp(r.length()*1.05,10,210); }
+    this.goal.u=clamp(Math.atan2(q,d),-1.15,1.15); this.goal.v=clamp(Math.atan2(r.y,hl),0.22,1.35); this.goal.L=clamp(r.length()*1.05,10,260); }
   think(){ if(vs&&vs.f===this&&player.kite&&player.kite.state==='flying'){ this.target=player.kite; this.aiT=1.5; return; }
     if(this.vsKite){ if(this.vsKite.state==='flying'&&this.vsKite.owner){ this.target=this.vsKite; this.aiT=1.5; return; } this.vsKite=null; }
     this.aiT=R(4,9); const me=this.kite;
-    const c=kites.filter(o=>o!==me && o.state==='flying' && o.owner && o.L>12 && o.pos.distanceTo(this.hand)<200);
+    const c=kites.filter(o=>o!==me && o.state==='flying' && o.owner && o.L>12 && o.pos.distanceTo(this.hand)<260);
     if(c.length && rnd()<this.aggr){ let best=null,bs=1e9; for(const o of c){ let s=o.pos.distanceTo(me.pos); if(o.owner===player) s*=0.55; if(s<bs){bs=s;best=o;} } this.target=best; }
     else { this.target=null; this.goal.u=R(-0.8,0.8); this.goal.v=R(0.5,1.1); this.goal.L=R(40,140); } }
 }
 _s=777002; // bots nos mesmos telhados pra todo mundo da sala
-{ const spots=[[-24,-8],[22,-16],[6,24],[-14,20],[26,20],[-28,28]];
+/* igual na vida real: a molecada solta das lajes das outras ruas, espalhada em volta, e pra cortar tem que dar linha e arrastar até lá.
+   Só 3 ficam no campo pra quem está começando. Mesmo número e mesmos telhados em todo aparelho (o online depende disso). */
+{ const spots=[[-24,-8],[22,-16],[-28,28]];
   spots.forEach(([x,z],i)=>flyers.push(new Flyer(NAMES[i],{cx:x,cz:z,top:0})));
-  const city=houses.filter(h=>h.top>5.5&&Math.hypot(h.cx,h.cz)>55&&Math.hypot(h.cx,h.cz)<150);
-  for(let i=0;i<4&&city.length;i++){ const h=city.splice(Math.floor(rnd()*city.length),1)[0]; flyers.push(new Flyer(NAMES[6+i],h)); }
-  const tall=favHouses.filter(h=>h.top>8); for(let i=0;i<6&&tall.length;i++){ const h=tall.splice(Math.floor(rnd()*tall.length),1)[0]; flyers.push(new Flyer(NAMES[10+i],h)); } }
+  const roofOK=h=>{ if(h.top<4.5) return false; const d=Math.hypot(h.cx,h.cz); if(d<45||d>215) return false; const t=world.topAt(h.cx,h.cz,0.4); return Math.abs(t-h.top)<0.35; };
+  const all=houses.concat(favHouses).filter(roofOK);
+  // 8 direções x 3 distâncias (perto, meio, longe): um bot por casa sorteada em cada setor, pra ficar gente soltando em toda volta
+  const RINGS=[[45,90],[90,150],[150,215]], SECT=8; let n=spots.length;
+  for(let r=0;r<RINGS.length;r++) for(let sct=0;sct<SECT;sct++){ if(n>=NAMES.length) break;
+    const a0=-Math.PI+sct*TAU/SECT, a1=a0+TAU/SECT;
+    const cell=all.filter(h=>{ const d=Math.hypot(h.cx,h.cz), a=Math.atan2(h.cz,h.cx); return d>=RINGS[r][0]&&d<RINGS[r][1]&&a>=a0&&a<a1&&!flyers.some(f=>Math.hypot(f.pos.x-h.cx,f.pos.z-h.cz)<12); });
+    if(!cell.length) continue; const h=cell[Math.floor(rnd()*cell.length)]; flyers.push(new Flyer(NAMES[n++],h)); } }
 
 /* ---------------- moleques que correm pra aparar ---------------- */
 const runners=[];
