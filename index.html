@@ -43,6 +43,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
 #hud{position:fixed;inset:0;pointer-events:none}
 .stats{position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:calc(10px + env(safe-area-inset-top,0px));
   display:flex;gap:6px;flex-wrap:wrap;max-width:60vw}
+.teamchip{background:linear-gradient(135deg,rgba(35,107,112,.85),rgba(23,59,75,.85))}.teamchip.hit b{color:var(--pipa)}
 .chip{background:var(--glass);color:#fff;border-radius:10px;padding:6px 10px;font-size:12px;line-height:1.1;display:flex;flex-direction:column;gap:2px;min-width:58px}
 .chip b{font-family:var(--display);font-size:18px;font-weight:400;font-variant-numeric:tabular-nums;color:var(--pipa)}
 .chip span{letter-spacing:.06em;text-transform:uppercase;font-size:10px;opacity:.85}
@@ -265,6 +266,7 @@ button:focus-visible{outline:3px solid var(--pipa);outline-offset:2px}
     <div class="chip"><span>Pipas</span><b id="st-pipas">0</b></div>
     <div class="chip"><span>Grana</span><b id="st-money">R$ 0</b></div>
     <div class="chip" id="chip-online"><span>Online</span><b id="st-online">OFF</b></div>
+    <div class="chip teamchip" id="chip-team" hidden><span>Dupla × Bots</span><b id="st-team">0 × 0</b></div>
     <button id="b-shop" class="shopbtn">LOJA</button>
     <button id="b-cam" class="shopbtn camb">CÂMERA<small>V</small></button>
     <button id="b-vara" class="shopbtn camb">VARA<small>B</small></button>
@@ -1648,7 +1650,7 @@ function endContact(c){ c.a.via=null; c.b.via=null; if(c.a.contact===c) c.a.cont
 const tpS=k=>k.viaS!=null?k.viaS:0.5;
 function checkTailCuts(){
   const atk=kites.filter(k=>k.state==='flying'&&k.owner&&k.L>8&&(k.mode==='pull'||k.dib>0));
-  for(const a of atk) for(const v of kites){ if(v===a||v.state!=='flying'||!v.owner||v.tailCut||v.remote||!v.tailInit) continue;
+  for(const a of atk) for(const v of kites){ if(v===a||v.state!=='flying'||!v.owner||v.tailCut||v.remote||!v.tailInit||dupla(a,v)) continue;
     if(a.pos.distanceTo(v.pos)>a.L*0.5+40) continue; const A=a.hand, B=a.pos; T1.subVectors(B,A); const L2=T1.lengthSq()||1;
     for(let i=6;i<TAILN;i+=3){ const p=v.tail[i].p; const t=clamp(T2.subVectors(p,A).dot(T1)/L2,0,1); T3.copy(A).addScaledVector(T1,t); if(T3.distanceTo(p)<0.6){ tailCut(v,a); break; } } } }
 function tailCut(v,a){ v.tailCut=true; const pts=[]; for(let i=5;i<TAILN;i++){ const p=v.tail[i].p; pts.push(p.x,p.y,p.z); }
@@ -1662,6 +1664,7 @@ function updateCombat(dt){
   const seen=new Set();
   for(let i=0;i<ks.length;i++) for(let j=i+1;j<ks.length;j++){
     const a=ks[i],b=ks[j]; const key=a.id*100000+b.id; seen.add(key);
+    if(dupla(a,b)){ const ps0=pairs.get(key); if(ps0&&ps0.c) endContact(ps0.c); pairs.delete(key); continue; } // parceiro não corta parceiro
     const cc=chord(a,b); const inR=cc.s>0.04&&cc.s<1&&cc.t>0.04&&cc.t<1;
     let ps=pairs.get(key); if(!ps){ pairs.set(key,{sign:cc.sign,c:null}); continue; }
     if(ps.c && ps.c.dead) ps.c=null;
@@ -1678,6 +1681,13 @@ function updateCombat(dt){
   for(const k of pairs.keys()) if(!seen.has(k)){ const ps=pairs.get(k); if(ps.c) endContact(ps.c); pairs.delete(k); }
 }
 const remnants=[];
+/* modo dupla: numa sala privada (com código) as pessoas jogam juntas contra os bots */
+const TEAM={on:false,us:0,bots:0};
+function isHumanOwner(o){ if(!o) return false; if(o===player) return true; try{ return !!(o.remote&&NET.peers.get(o.id)===o); }catch(e){ return false; } }
+function teamOn(){ try{ return !!(NET.on&&NET.room&&NET.peers.size>0); }catch(e){ return false; } }
+function dupla(a,b){ return teamOn()&&isHumanOwner(a.owner)&&isHumanOwner(b.owner); }
+function teamCount(v,owner,cutter){ if(!teamOn()) return; const vh=isHumanOwner(owner), ch=isHumanOwner(cutter&&cutter.owner);
+  if(ch&&!vh){ TEAM.us++; } else if(vh&&!ch){ TEAM.bots++; } else return; TEAM.flash=now+1.2; }
 function netHost(){ try{ return NET.host; }catch(e){ return false; } } // o pré-aquecimento roda antes da rede existir
 function cutKite(v,cutter,s){
   const owner=v.owner; const cut=v.curve(s,V());
@@ -1688,7 +1698,7 @@ function cutKite(v,cutter,s){
   v.via=null; v.state='free'; v.trail=clamp(v.pos.distanceTo(cut)*0.85,8,40); v.vel.copy(wind.D).multiplyScalar(2.4); v.vel.y=-1.5; v.owner=null; v.contact=null;
   if(owner){ owner.kite=null; if(owner.respawn!==undefined) owner.respawn=R(7,13); if(owner.target===v) owner.target=null; }
   for(const f of flyers) if(f.target===v) f.target=null;
-  sparks(cut,24); Sx.cut(); crowdShout(cut,cutter,owner); reiCount(cutter);
+  sparks(cut,24); Sx.cut(); crowdShout(cut,cutter,owner); reiCount(cutter); teamCount(v,owner,cutter);
   if(cutter.owner===player){ const bonus=(vs&&vs.f===owner)?100:0; player.money+=40+bonus; if(bonus){ stat('vs'); feed(`Você venceu o Vs contra <em>${v.ownerName}</em> · +R$ 100`); setTimeout(()=>toast('GANHOU O VS!','+R$ 140 no bolso'),900); vs=null; } }
   if(vs && owner===player && cutter.owner===vs.f){ setTimeout(()=>toast('PERDEU O VS',`${vs&&vs.f.name||'O rival'} levou essa`,'red'),900); feed(`<em>${cutter.ownerName}</em> ganhou o Vs`); vs=null; }
   if(vs && (owner===vs.f || owner===player)) vs=null;
@@ -1852,6 +1862,8 @@ function updateHUD(dt){
   setText($('#st-lv'),'lv',String(PROG.lvl)); { const w=(PROG.xp/needXP(PROG.lvl)*100).toFixed(0)+'%'; if(cache.xpw!==w){ cache.xpw=w; $('#st-xp').style.width=w; } }
   if(running && (progDirty&&now-lastSave>4 || now-lastSave>15)) saveProg();
   setText(hud.money,'$','R$ '+player.money);
+  { const on=teamOn(), ch=$('#chip-team'); if(on!==TEAM.on){ TEAM.on=on; ch.hidden=!on; if(on){ toast('MODO DUPLA','Na sala privada vocês são time: parceiro não corta parceiro'); feed('Modo dupla ligado: <em>vocês</em> contra os bots'); } }
+    if(on){ setText($('#st-team'),'tm',TEAM.us+' × '+TEAM.bots); ch.classList.toggle('hit',(TEAM.flash||0)>now); } }
   setText(hud.relo,'r',String(player.relos)); setText(hud.apar,'a',String(player.apar)); setText(hud.pipas,'p',String(player.inv.length));
   const k=player.kite;
   // botão Vs: rival com pipa no ar perto da sua
@@ -2330,7 +2342,7 @@ $('#nick').addEventListener('input',e=>{ NET.name=cleanNick(e.target.value); e.t
   clearTimeout(NET.nickT); NET.nickT=setTimeout(()=>{ if(NET.ch&&NET.on){ try{ NET.ch.track({n:NET.name,t:NET.joinT,lv:PROG.lvl,r:player.relos}); }catch(e){} } },600); });
 function netStatus(t){ NET.status=t; const el=$('#net-status'); if(el) el.textContent='Online: '+t; }
 function roomName(){ return NET.room?'sala '+NET.room:'praça aberta'; }
-function netStart(room){
+function netStart(room){ TEAM.us=0; TEAM.bots=0;
   if(room!==undefined) NET.room=String(room||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
   if(!window.supabase||!window.supabase.createClient){ NET.on=false; setBotControl(true); netStatus('indisponível aqui (jogue pelo link do GitHub)'); return; }
   try{
