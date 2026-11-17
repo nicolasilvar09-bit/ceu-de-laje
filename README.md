@@ -1,52 +1,61 @@
 # Céu de Laje
 
-Protótipo de jogo de pipa em mundo aberto, roda no navegador do PC e do celular (Three.js).
+Jogo de pipa em mundo aberto, feito com Three.js para navegador de computador e celular. Solte a pipa da laje, cruze linhas, dispute o céu, explore o bairro, ande de bicicleta ou carro e participe das salas online.
 
-Sobe a pipa da laje, cruza com a linha dos outros e puxa pra relar. Pipa cortada cai devagar arrastando a linha: corre pelos telhados, pega a linha (ou usa a vara de bambu) e recolhe até a mão.
+## Requisitos e execução
 
-## Jogar
-- Online: GitHub Pages deste repositório (`index.html`).
-- Local: `node serve.js` e abra http://localhost:5178
+- Node.js 18 ou superior para gerar e servir a versão local.
+- Não é necessário instalar dependências npm.
+
+```bash
+npm test       # auditoria estática dos scripts e assets
+npm run build  # gera index.html a partir de ceu-de-laje.html
+npm start      # abre o servidor local em http://127.0.0.1:5178
+```
+
+O servidor local gera o `index.html` ao iniciar. Para publicar no GitHub Pages, envie `index.html`, `manifest.webmanifest` e a pasta `assets/`.
 
 ## Controles
-| | PC | Celular |
+
+| Ação | PC | Celular |
 |---|---|---|
-| Comandar o bico da pipa | WASD | joystick (esquerda) |
-| Puxar / dar linha / recolher | mouse esq. / mouse dir. / rodinha ou L | ▲ / ▼ / RECOLHER |
-| Modo pipa ⇄ andar | C | botão ANDAR/PIPA |
-| Câmera (ombro, 1ª, 3ª, longe) | V | botão CÂMERA |
-| Bike / carro | F entra e sai, Espaço = grau | botão ENTRAR/SAIR, GRAU |
-| Vara de bambu | B | botão VARA |
-| Montar pipa nova | R | botão MONTAR |
+| Comandar o bico da pipa | WASD | Joystick esquerdo |
+| Puxar / dar linha / recolher | Mouse esquerdo / direito / rodinha ou L | ▲ / ▼ / RECOLHER |
+| Modo pipa ⇄ andar | C | ANDAR/PIPA |
+| Câmera | V | CÂMERA |
+| Bike / carro | F entra e sai; Espaço = grau/freio | ENTRAR/SAIR; GRAU |
+| Vara de bambu | B | VARA |
+| Montar pipa nova | R | MONTAR |
+| Abrir nível, missões e placar | M ou chip NÍVEL | Chip NÍVEL |
 
-## Online
-Sala única ("praça") pelo Supabase Realtime do projeto paintball (separado do NK), com a chave publicável e canal de broadcast, sem tabelas. Cada jogador manda no máximo 4 atualizações por segundo e só quando algo muda.
-O estado enviado inclui posição, veículo e pipa. Cada um é dono da própria pipa: o cruzo é calculado nos dois lados, mas só o dono corta a própria linha e avisa a sala. Quem apara uma pipa avisa a sala, e ela some pros outros.
-Salas: "Criar sala" gera um código de 4 letras e um link (`?sala=CODIGO`); os amigos entram pelo código ou pelo link. Quem entrou primeiro é o dono da sala e roda os bots: todos veem os mesmos bots, e se o dono sair o próximo assume. Quanto mais gente na sala, menos vezes cada um manda o estado (de 4 até ~0,8 por segundo), pra caber no limite grátis de ~100 mensagens/s.
-Só funciona no link do GitHub Pages; o link do Claude bloqueia conexões externas.
+## Sistemas presentes
 
-## Sistemas
-Cruzo com linhas que se encostam no ponto real, força de corte por linha (10, 24, Pro), desafio Vs, loja (formato, estampa, linha), dinheiro, aparar pela linha, bike com grau, carro, câmeras em 1ª e 3ª pessoa, morros, grafites e murais gerados pelo jogo.
+- Mundo aberto com campo, lajes, morros, grafites, murais e objetos de cenário.
+- Pipas com formatos e estampas diferentes, vento, rabiola, linha, cruzo, nó, dibicada, aparada e corte.
+- Personagens, NPCs, bicicletas, carros e câmeras.
+- Loja, dinheiro, XP, níveis, missões diárias e eventos no céu.
+- Salas online com Supabase Realtime, presença, sincronização de jogadores e bots.
+- Preferências gráficas Alto, Médio e Baixo, com ajuste automático de resolução.
 
-## Arquivos
-- `ceu-de-laje.html`: fonte do jogo. `node build.js` gera o `index.html`.
-- `assets/web/`: personagens (glTF em JSON) e céu prontos pro navegador.
-- `assets/tex/`: texturas (Poly Haven, CC0).
-- `assets/people/`, `assets/sky_*.hdr`: originais (Rocketbox FBX, HDRI) pra regerar ou usar na versão Unity.
-- `convert.html`: converte os originais pra web (abrir via `serve.js`).
+## Online e salvamento
 
-Créditos e licenças em [CREDITOS.md](CREDITOS.md).
+O multiplayer utiliza Supabase Realtime com chave publicável no navegador. As salas são canais de broadcast/presença, sem tabelas de conta. O modo solo não exige conta, mas a primeira abertura precisa de internet para baixar Three.js e seus módulos pelos CDNs. O multiplayer também depende da conexão e do serviço Supabase.
 
-## Progresso
-- Toque no chip **NÍVEL** (ou tecla **M**) para ver nível, missões do dia e o placar da sala.
-- XP vem de relo, aparada (no ar vale mais), corte de rabiola, cruzo no nó, VS e tempo de pipa no ar. Cada nível paga prêmio em grana.
-- Três missões por dia, iguais para todo mundo naquele dia.
-- Grana, pipas, linhas compradas, nível e missões ficam salvos no aparelho (navegador).
+Dinheiro, pipas, linhas compradas, nível e missões ficam salvos no `localStorage` do aparelho/navegador. O progresso não é compartilhado automaticamente entre dispositivos.
 
-## Eventos no céu
-A cada 2,5–4 minutos acontece um evento (na sala online, o dono da sala sorteia e todo mundo vê o mesmo):
-- **Pipa Dourada:** uma pipa cortada brilhante cai do alto. Quem aparar ganha R$ 150 e 100 XP. Os moleques demoram mais pra correr atrás dela.
-- **Ventania:** 1 minuto de vento forte com rajadas. A pipa corre mais e balança mais.
-- **Rei do Céu:** 2 minutos de disputa. Quem relar mais leva R$ 200 e 150 XP.
+## Arquivos principais
 
-A galera das lajes grita quando rola relo por perto ("RELOU!", "APARA!", "É NÓIS!").
+- `ceu-de-laje.html`: fonte principal do jogo.
+- `index.html`: página pronta para publicação, gerada por `node build.js`.
+- `build.js`: compilação da página completa.
+- `serve.js`: servidor local de desenvolvimento e conversão/upload de assets.
+- `tools/audit.js`: verificações estáticas automatizadas.
+- `assets/web/`: modelos glTF, objetos, céu e ícones usados no navegador.
+- `assets/tex/`: texturas em resolução alta e versões 512 px para dispositivos móveis.
+- `assets/people/` e `assets/sky_*.hdr`: arquivos originais de personagens e HDRI.
+- `CREDITOS.md`: créditos e licenças dos assets.
+- `AUDITORIA.md`: resultado, correções, limitações e instruções para repetir a auditoria.
+
+## Créditos
+
+Consulte `CREDITOS.md` para fontes e licenças dos modelos, texturas e imagens.
